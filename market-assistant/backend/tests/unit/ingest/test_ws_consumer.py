@@ -1,11 +1,11 @@
 import asyncio
 import json
-
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.ingest.ws_consumer import BinanceWSConsumer, compute_backoff_delay
+import pytest
+
 from app.ingest.buffer import CandleBuffer
+from app.ingest.ws_consumer import BinanceWSConsumer, compute_backoff_delay
 from tests.fixtures.binance_klines import VALID_CLOSED_KLINE
 
 
@@ -47,7 +47,9 @@ async def test_valid_message_is_parsed_and_added_to_buffer():
     buffer = CandleBuffer(symbol_to_instrument_id={"BTC/USDT": 1})
     redis = AsyncMock()
 
-    connect_fn = MagicMock(return_value=_FakeWSMessages([VALID_CLOSED_KLINE], then_raise=_StreamEnded()))
+    connect_fn = MagicMock(
+        return_value=_FakeWSMessages([VALID_CLOSED_KLINE], then_raise=_StreamEnded())
+    )
     consumer = BinanceWSConsumer(
         symbols=["BTC/USDT"],
         buffer=buffer,
