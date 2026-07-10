@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     UNIVERSE_QUOTE_ASSET: str = "USDT"
     BINANCE_WS_BASE_URL: str = "wss://stream.binance.com:9443"
     WS_MAX_BACKOFF_S: float = 60.0
+    BACKFILL_RATE_LIMIT_MS: int = 250
 
 
 @lru_cache
