@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     BINANCE_WS_BASE_URL: str = "wss://stream.binance.com:9443"
     WS_MAX_BACKOFF_S: float = 60.0
     BACKFILL_RATE_LIMIT_MS: int = 250
+    NEWS_FEED_URLS: list[str] = []
 
 
 @lru_cache
