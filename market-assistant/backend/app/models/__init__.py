@@ -9,5 +9,6 @@ class Base(DeclarativeBase):
 from app.models.candle import CandleRow  # noqa: E402
 from app.models.instrument import Instrument  # noqa: E402
 from app.models.news_item import NewsItem  # noqa: E402
+from app.models.scan_rule import ScanRule  # noqa: E402
 
-__all__ = ["Base", "CandleRow", "Instrument", "NewsItem"]
+__all__ = ["Base", "CandleRow", "Instrument", "NewsItem", "ScanRule"]

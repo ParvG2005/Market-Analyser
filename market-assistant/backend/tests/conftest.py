@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -95,6 +96,26 @@ def session_factory(db_connection):
         )
 
     return _make
+
+
+@pytest.fixture
+def test_user_id() -> uuid.UUID:
+    return uuid.uuid4()
+
+
+@pytest.fixture
+def other_user_id() -> uuid.UUID:
+    return uuid.uuid4()
+
+
+@pytest.fixture
+def auth_headers(test_user_id: uuid.UUID) -> dict[str, str]:
+    return {"X-Dev-User": str(test_user_id)}
+
+
+@pytest.fixture
+def other_user_headers(other_user_id: uuid.UUID) -> dict[str, str]:
+    return {"X-Dev-User": str(other_user_id)}
 
 
 @pytest.fixture
