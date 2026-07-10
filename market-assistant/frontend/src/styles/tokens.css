@@ -54,6 +54,19 @@
   --down-bg: rgba(242, 96, 106, 0.12);
   --neutral: #6b7a91;
   --skeleton-sweep: rgba(255, 255, 255, 0.06);
+
+  /* Chart series (canvas literals; read via getComputedStyle) */
+  --chart-grid: rgba(148, 163, 184, 0.08);
+  --chart-ema: #f5a524;
+  --chart-vwap: #8b7cf6;
+  --chart-bb: #4b7bd6;
+  --chart-vol-up: rgba(53, 208, 127, 0.45);
+  --chart-vol-down: rgba(242, 96, 106, 0.45);
+
+  /* Watchlist tile ink — always light; tile backgrounds are dark heat colors
+     in both themes, so these are intentionally not overridden below. */
+  --wl-ink: #f4f7fb;
+  --wl-ink-dim: rgba(244, 247, 251, 0.72);
 }
 
 /* Light palette — applied via OS preference unless the toggle overrides it */
@@ -77,6 +90,12 @@
     --down-bg: rgba(207, 55, 66, 0.1);
     --neutral: #6b7a91;
     --skeleton-sweep: rgba(15, 23, 42, 0.05);
+    --chart-grid: rgba(15, 23, 42, 0.06);
+    --chart-ema: #b3730a;
+    --chart-vwap: #6d5ae0;
+    --chart-bb: #2f66c7;
+    --chart-vol-up: rgba(18, 138, 84, 0.4);
+    --chart-vol-down: rgba(207, 55, 66, 0.4);
   }
 }
 
@@ -100,4 +119,10 @@
   --down-bg: rgba(207, 55, 66, 0.1);
   --neutral: #6b7a91;
   --skeleton-sweep: rgba(15, 23, 42, 0.05);
+  --chart-grid: rgba(15, 23, 42, 0.06);
+  --chart-ema: #b3730a;
+  --chart-vwap: #6d5ae0;
+  --chart-bb: #2f66c7;
+  --chart-vol-up: rgba(18, 138, 84, 0.4);
+  --chart-vol-down: rgba(207, 55, 66, 0.4);
 }

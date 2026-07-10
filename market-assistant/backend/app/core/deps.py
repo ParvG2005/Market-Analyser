@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from functools import lru_cache
 from typing import cast
 
@@ -23,6 +24,16 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
     # disposed engine / dead event loop (asyncpg cross-event-loop failure).
     # Construction is trivial, so rebuild on the current engine each call.
     return async_sessionmaker(get_engine(), expire_on_commit=False)
+
+
+async def get_session() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency yielding a request-scoped AsyncSession.
+
+    Tests override this to bind sessions to their shared transaction; see
+    the candles integration tests.
+    """
+    async with get_sessionmaker()() as session:
+        yield session
 
 
 @lru_cache

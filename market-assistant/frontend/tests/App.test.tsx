@@ -1,8 +1,38 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
 import { createTestRouter } from "../src/router";
+
+// The live Charts page mounts a chart + WebSocket; keep this smoke test
+// deterministic by stubbing the canvas library and network primitives.
+vi.mock("lightweight-charts", () => {
+  const series = () => ({ setData: vi.fn(), applyOptions: vi.fn() });
+  return {
+    ColorType: { Solid: "solid" },
+    createChart: () => ({
+      addCandlestickSeries: series,
+      addHistogramSeries: series,
+      addLineSeries: series,
+      priceScale: () => ({ applyOptions: vi.fn() }),
+      applyOptions: vi.fn(),
+      remove: vi.fn(),
+    }),
+  };
+});
+
+class NoopWebSocket {
+  onopen: (() => void) | null = null;
+  onmessage: (() => void) | null = null;
+  onclose: (() => void) | null = null;
+  send() {}
+  close() {}
+}
+
+beforeEach(() => {
+  vi.stubGlobal("WebSocket", NoopWebSocket as unknown as typeof WebSocket);
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => [] }));
+});
 
 const ROUTES: Array<[string, string]> = [
   ["/", "Home"],

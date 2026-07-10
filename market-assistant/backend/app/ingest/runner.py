@@ -94,7 +94,9 @@ async def run_ingest(
         symbol_to_instrument_id = await _ensure_instruments(session_factory, symbols)
         logger.info("ingest universe: %d symbols", len(symbol_to_instrument_id))
 
-        buffer = CandleBuffer(symbol_to_instrument_id)
+        # Pass redis so each flushed candle is fanned out to /ws/candles
+        # subscribers (Phase 3 live visualization).
+        buffer = CandleBuffer(symbol_to_instrument_id, redis=redis)
         consumer = BinanceWSConsumer(
             symbols=symbols,
             buffer=buffer,

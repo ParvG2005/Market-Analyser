@@ -3,9 +3,11 @@ import { expect, test, type Page } from "@playwright/test";
 const DISCLAIMER_TEXT =
   "Educational analysis. Not investment advice. Past performance ≠ future results.";
 
+// Static pages get pixel-snapshotted. Charts/Watchlist are live (canvas + a
+// WebSocket feed) so they are inherently non-deterministic — they are covered
+// structurally below and, for Charts, by chart.spec.ts.
 const ROUTES: Array<{ path: string; name: string }> = [
   { path: "/", name: "home" },
-  { path: "/charts", name: "charts" },
   { path: "/scanner", name: "scanner" },
   { path: "/strategies", name: "strategies" },
   { path: "/trends", name: "trends" },
@@ -14,6 +16,8 @@ const ROUTES: Array<{ path: string; name: string }> = [
   { path: "/chat", name: "chat" },
   { path: "/settings", name: "settings" },
 ];
+
+const LIVE_ROUTES = ["/charts", "/watchlist"];
 
 const THEMES = ["light", "dark"] as const;
 
@@ -40,4 +44,12 @@ for (const theme of THEMES) {
       await expect(page).toHaveScreenshot(`${route.name}-${theme}.png`, { fullPage: true });
     });
   }
+}
+
+for (const path of LIVE_ROUTES) {
+  test(`live page ${path} renders shell + footer`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    await expect(page.getByText(DISCLAIMER_TEXT)).toBeVisible();
+  });
 }

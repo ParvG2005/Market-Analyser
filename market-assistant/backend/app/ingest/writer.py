@@ -1,12 +1,23 @@
+from redis.asyncio import Redis
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.pubsub import publish_candle_update
 from app.ingest.candle import Candle
 from app.models.candle import CandleRow
 
 
-async def upsert_candles(session: AsyncSession, instrument_id: int, candles: list[Candle]) -> int:
-    """Batch upsert candles for one instrument. Idempotent on (instrument_id, tf, ts)."""
+async def upsert_candles(
+    session: AsyncSession,
+    instrument_id: int,
+    candles: list[Candle],
+    redis: Redis | None = None,
+) -> int:
+    """Batch upsert candles for one instrument. Idempotent on (instrument_id, tf, ts).
+
+    When `redis` is provided, each written candle is fanned out to its
+    Redis pub/sub channel so WebSocket subscribers see it live (Phase 3).
+    """
     if not candles:
         return 0
 
@@ -36,4 +47,21 @@ async def upsert_candles(session: AsyncSession, instrument_id: int, candles: lis
         },
     )
     await session.execute(stmt)
+
+    if redis is not None:
+        for c in candles:
+            await publish_candle_update(
+                redis,
+                c.symbol,
+                c.tf,
+                {
+                    "ts": c.ts.isoformat(),
+                    "o": float(c.o),
+                    "h": float(c.h),
+                    "l": float(c.l),
+                    "c": float(c.c),
+                    "v": float(c.v),
+                },
+            )
+
     return len(rows)
