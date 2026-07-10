@@ -45,6 +45,7 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: mypy app
+      - run: alembic upgrade head
       - run: pytest -v
 
   frontend:

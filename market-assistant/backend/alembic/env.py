@@ -8,6 +8,10 @@ from app.core.config import get_settings
 from app.models import Base
 
 config = context.config
+# DO NOT run `alembic revision --autogenerate`. Base.metadata maps only a
+# subset of the schema, and every migration is hand-written raw SQL.
+# Autogenerate would diff the live DB against this partial metadata and emit
+# spurious DROP/CREATE for the unmapped tables. Write migrations by hand.
 target_metadata = Base.metadata
 
 
