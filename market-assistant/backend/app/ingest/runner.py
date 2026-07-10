@@ -114,11 +114,16 @@ async def run_ingest(
             for task in (consumer_task, flush_task):
                 task.cancel()
             await asyncio.gather(consumer_task, flush_task, return_exceptions=True)
-            # Drain anything buffered but not yet flushed so a shutdown does not
-            # silently discard already-received closed candles.
-            async with session_factory() as session:
-                await buffer.flush(session)
-                await session.commit()
+            # Best-effort drain of anything buffered but not yet flushed so a
+            # shutdown does not silently discard already-received closed candles.
+            # A drain failure is logged and swallowed: it must never mask the
+            # CancelledError (or other error) propagating out of this block.
+            try:
+                async with session_factory() as session:
+                    await buffer.flush(session)
+                    await session.commit()
+            except Exception:
+                logger.exception("ingest shutdown drain failed; buffered candles not persisted")
     finally:
         if created_exchange:
             await exchange_obj.close()

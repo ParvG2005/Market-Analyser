@@ -41,6 +41,30 @@ class _FakeWS:
         raise asyncio.CancelledError()
 
 
+class _BlockingWS:
+    """Async CM + iterator: yields messages, signals ready, then parks open
+    (like a live socket) until the surrounding task is externally cancelled."""
+
+    def __init__(self, messages: list[dict], ready: asyncio.Event) -> None:
+        self._messages = messages
+        self._ready = ready
+
+    async def __aenter__(self) -> "_BlockingWS":
+        return self
+
+    async def __aexit__(self, *exc: object) -> bool:
+        return False
+
+    def __aiter__(self):
+        return self._gen()
+
+    async def _gen(self):
+        for m in self._messages:
+            yield json.dumps(m)
+        self._ready.set()
+        await asyncio.sleep(3600)
+
+
 @pytest.mark.asyncio
 async def test_run_ingest_wires_universe_instruments_and_candles(
     monkeypatch, session_factory
@@ -114,3 +138,42 @@ async def test_run_ingest_get_or_create_is_idempotent(monkeypatch, session_facto
             .where(Instrument.symbol == "BTC/USDT")
         )
     assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_run_ingest_external_cancel_drains_buffered_candles(
+    monkeypatch, session_factory
+):
+    # Real deploy shutdown path: the pipeline is a long-running task the
+    # supervisor stops via task.cancel() (not the WS raising from inside).
+    exchange = AsyncMock()
+    exchange.fetch_tickers = AsyncMock(
+        return_value={"BTC/USDT": {"quoteVolume": 1000}}
+    )
+
+    ready = asyncio.Event()
+    kline1 = _kline(1700000000000)
+    kline2 = _kline(1700000060000)
+
+    def connect_fn(url: str) -> _BlockingWS:
+        return _BlockingWS([kline1, kline2], ready)
+
+    monkeypatch.setattr(runner, "get_sessionmaker", lambda: session_factory)
+    monkeypatch.setattr(runner, "get_redis", lambda: AsyncMock())
+
+    task = asyncio.create_task(
+        runner.run_ingest(connect_fn=connect_fn, exchange=exchange)
+    )
+    # Wait until both candles are buffered and the socket is parked open.
+    await asyncio.wait_for(ready.wait(), timeout=5)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    # Clean cancellation still best-effort drained the buffered candles.
+    async with session_factory() as session:
+        candle_count = await session.scalar(
+            select(func.count()).select_from(CandleRow)
+        )
+    assert candle_count == 2
