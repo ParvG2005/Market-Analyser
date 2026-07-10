@@ -10,6 +10,8 @@ const ROUTES: Array<[string, string]> = [
   ["/scanner", "Scanner"],
   ["/strategies", "Strategies"],
   ["/trends", "Trends"],
+  ["/analytics", "Analytics"],
+  ["/ml", "ML"],
   ["/chat", "Chat"],
   ["/settings", "Settings"],
 ];

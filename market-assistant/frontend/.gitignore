@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# tsc -b emits alongside sources; keep compiled output out of git
+src/**/*.js
+src/**/*.d.ts
+tests/**/*.js
+tests/**/*.d.ts
+vite.config.js
+vite.config.d.ts
