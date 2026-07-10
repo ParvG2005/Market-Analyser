@@ -24,6 +24,9 @@ dev = [
   "ruff>=0.6",
   "mypy>=1.11",
   "hypothesis>=6",
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "pandas-ta>=0.3.14b0",
 ]
 
 [build-system]
