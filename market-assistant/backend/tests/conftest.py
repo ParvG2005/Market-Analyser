@@ -1,9 +1,26 @@
 import pytest
+from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from alembic import command
 from app.core.deps import get_engine, get_redis
 from app.main import create_app
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _bootstrap_schema():
+    # A freshly-started Postgres (local dev or CI) has an empty `public`
+    # schema. Acceptance and ingest integration tests INSERT into tables
+    # (instruments/candles/news_items/...) that only exist after migrations,
+    # and pytest may collect them before tests/integration/test_migrations.py
+    # creates the schema, so run `alembic upgrade head` ONCE at session start.
+    # This is synchronous (command.upgrade manages its own event loop, see
+    # alembic/env.py), so it does not conflict with the function-scoped
+    # event loops pytest-asyncio hands each test. test_migrations.py may later
+    # drop and re-create the schema mid-session; nothing table-dependent is
+    # collected after it, so that is safe.
+    command.upgrade(Config("alembic.ini"), "head")
 
 
 @pytest.fixture(autouse=True)
