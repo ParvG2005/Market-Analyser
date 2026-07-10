@@ -1,6 +1,10 @@
 node_modules/
 dist/
 *.tsbuildinfo
+test-results/
+playwright-report/
+blob-report/
+.playwright/
 
 # tsc -b emits alongside sources; keep compiled output out of git
 src/**/*.js
