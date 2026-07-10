@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import cast
 
 import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import (
@@ -26,4 +27,9 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
 
 @lru_cache
 def get_redis() -> redis.Redis:
-    return redis.from_url(get_settings().redis_url, decode_responses=True)
+    # redis<6 (pinned transitively by arq) ships an untyped from_url; cast the
+    # result back to the annotated return type to keep mypy --strict green.
+    client = redis.from_url(  # type: ignore[no-untyped-call]
+        get_settings().redis_url, decode_responses=True
+    )
+    return cast(redis.Redis, client)

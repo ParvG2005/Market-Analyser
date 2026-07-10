@@ -11,6 +11,8 @@ dependencies = [
   "alembic>=1.13",
   "redis>=5.0",
   "feedparser>=6.0",
+  "arq>=0.26",
+  "ccxt>=4.0",
 ]
 
 [project.optional-dependencies]
