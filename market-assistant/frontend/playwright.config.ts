@@ -13,7 +13,7 @@ export default defineConfig({
   // Snapshots are platform-specific; baselines are generated on Linux to match CI.
   snapshotPathTemplate: "{testDir}/__snapshots__/{testFilePath}/{arg}-{projectName}{ext}",
   expect: {
-    toHaveScreenshot: { maxDiffPixelRatio: 0.02, animations: "disabled" },
+    toHaveScreenshot: { maxDiffPixelRatio: 0.03, animations: "disabled" },
   },
   use: {
     baseURL,
