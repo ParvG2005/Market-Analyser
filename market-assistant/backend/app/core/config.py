@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     UNIVERSE_SIZE: int = 20
     UNIVERSE_QUOTE_ASSET: str = "USDT"
+    BINANCE_WS_BASE_URL: str = "wss://stream.binance.com:9443"
+    WS_MAX_BACKOFF_S: float = 60.0
 
 
 @lru_cache
