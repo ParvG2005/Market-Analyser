@@ -8,6 +8,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://market:market@localhost:5434/market_assistant"
     redis_url: str = "redis://localhost:6379/0"
+    UNIVERSE_SIZE: int = 20
+    UNIVERSE_QUOTE_ASSET: str = "USDT"
 
 
 @lru_cache
