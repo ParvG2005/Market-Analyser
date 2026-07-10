@@ -64,3 +64,23 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
+
+  frontend-e2e:
+    runs-on: ubuntu-latest
+    # Run inside the pinned Playwright image the visual baselines were generated
+    # in, so font/anti-aliasing rendering matches the snapshots exactly.
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+    defaults:
+      run:
+        working-directory: market-assistant/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: market-assistant/frontend/playwright-report/
+          retention-days: 7

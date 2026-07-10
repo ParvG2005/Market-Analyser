@@ -13,9 +13,6 @@ export function App({ router = defaultRouter }: AppProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
-      <footer>
-        Educational analysis. Not investment advice. Past performance ≠ future results.
-      </footer>
     </QueryClientProvider>
   );
 }
