@@ -1,11 +1,17 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
+import redis as redis_sync
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alembic import command
-from app.core.deps import get_engine, get_redis
+from app.core.config import get_settings
+from app.core.deps import get_engine, get_redis, get_session
 from app.main import create_app
+from app.models.candle import CandleRow
+from app.models.instrument import Instrument
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -101,3 +107,66 @@ async def test_client(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+async def client(app, db_connection, session_factory):
+    # Like test_client, but the get_session dependency is bound to the SAME
+    # shared connection/outer transaction as db_session, so the API reads
+    # rows a test seeded (and savepoint-committed) via db_session.
+    async def _override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            await session.close()
+
+    app.dependency_overrides[get_session] = _override_get_session
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            yield c
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+
+@pytest.fixture
+def redis_sync_client():
+    # Plain synchronous Redis client against the same instance the app uses,
+    # for test-side publishing into the pub/sub fan-out. Skips the test when
+    # no Redis is reachable (e.g. a bare unit-only environment).
+    client = redis_sync.Redis.from_url(get_settings().redis_url, decode_responses=True)
+    try:
+        client.ping()
+    except Exception:
+        pytest.skip("Redis not available")
+    try:
+        yield client
+    finally:
+        client.close()
+
+
+@pytest.fixture
+async def seed_btc_1m_candles(db_session):
+    instrument = Instrument(
+        symbol="BTC/USDT", asset_class="crypto", exchange="binance", active=True
+    )
+    db_session.add(instrument)
+    await db_session.flush()
+
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    for i in range(60):
+        db_session.add(
+            CandleRow(
+                instrument_id=instrument.id,
+                tf="1m",
+                ts=start + timedelta(minutes=i),
+                o=100 + i,
+                h=101 + i,
+                l=99 + i,
+                c=100.5 + i,
+                v=10 + i,
+            )
+        )
+    await db_session.commit()
+    return instrument

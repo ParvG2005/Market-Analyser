@@ -4,6 +4,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingest.candle import Candle
@@ -15,8 +16,13 @@ SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 
 class CandleBuffer:
-    def __init__(self, symbol_to_instrument_id: dict[str, int]) -> None:
+    def __init__(
+        self,
+        symbol_to_instrument_id: dict[str, int],
+        redis: Redis | None = None,
+    ) -> None:
         self._symbol_to_instrument_id = symbol_to_instrument_id
+        self._redis = redis
         self._pending: dict[str, list[Candle]] = defaultdict(list)
         self._lock = asyncio.Lock()
 
@@ -53,7 +59,9 @@ class CandleBuffer:
                     "flush: unknown symbol %s, dropping %d candles", symbol, len(candles)
                 )
                 continue
-            total_written += await upsert_candles(session, instrument_id, candles)
+            total_written += await upsert_candles(
+                session, instrument_id, candles, self._redis
+            )
         return total_written
 
     async def flush(self, session: AsyncSession) -> int:
