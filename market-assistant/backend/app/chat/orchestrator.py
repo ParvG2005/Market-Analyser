@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    from app.chat.quota import LlmQuotaGuard
 
 import app.chat.tools  # noqa: F401  (registers TOOL_IMPLS)
 from app.chat.guards.advice import check_advice_language
@@ -24,6 +27,11 @@ from app.models.chat import ChatMessage
 from app.schemas.chat import ToolResult
 
 MAX_TOOL_ROUNDS = 5
+
+# Shown (without calling the provider) when the global daily LLM budget is spent.
+QUOTA_FALLBACK_MESSAGE = (
+    "I don't have enough quota to answer right now — please try again later."
+)
 
 
 @dataclass
@@ -38,11 +46,28 @@ async def run_chat_turn(
     session_id: str,
     user_message: str,
     provider: LLMProvider | None = None,
+    quota_guard: "LlmQuotaGuard | None" = None,
 ) -> ChatTurnResult:
     if provider is None:
         from app.chat.providers.factory import get_provider
 
         provider = get_provider()
+
+    # Free-tier survival: block a turn (without calling the provider) once the
+    # global daily LLM budget is exhausted. Opt-in — callers that pass no guard
+    # (e.g. unit tests with a scripted provider) are unaffected.
+    if quota_guard is not None:
+        from app.core.config import get_settings
+
+        if not quota_guard.check_and_increment(get_settings().LLM_PROVIDER):
+            db.add(ChatMessage(session_id=session_id, role="user", content=user_message))
+            db.add(
+                ChatMessage(
+                    session_id=session_id, role="assistant", content=QUOTA_FALLBACK_MESSAGE
+                )
+            )
+            await db.commit()
+            return ChatTurnResult(answer=QUOTA_FALLBACK_MESSAGE)
 
     base_messages = [
         {"role": "system", "content": SYSTEM_PROMPT},

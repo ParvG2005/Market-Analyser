@@ -15,7 +15,7 @@ async def test_sse_endpoint_streams_incremental_tokens(client, auth_headers, mon
         tool_events = []
         regenerated = False
 
-    async def fake_run_chat_turn(db, sid, message, provider=None):
+    async def fake_run_chat_turn(db, sid, message, provider=None, quota_guard=None):
         return FakeResult()
 
     monkeypatch.setattr(orchestrator, "run_chat_turn", fake_run_chat_turn)

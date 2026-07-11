@@ -19,9 +19,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.chat import orchestrator
+from app.chat.quota import LlmQuotaGuard
 from app.chat.rate_limit import check_rate_limit
 from app.core.auth import get_current_user_id
-from app.core.deps import get_session
+from app.core.config import get_settings
+from app.core.deps import get_redis, get_session
 from app.models.chat import ChatMessage, ChatSession
 from app.schemas.chat import ChatMessageOut, ChatSessionOut, ChatTurnRequest
 
@@ -94,9 +96,15 @@ async def stream_turn(
     if owner is None or owner.user_id != user_id:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    quota_guard = LlmQuotaGuard(
+        redis_client=get_redis(), daily_quota=get_settings().llm_daily_quota
+    )
+
     async def event_stream() -> AsyncIterator[str]:
         try:
-            result = await orchestrator.run_chat_turn(session, str(session_id), body.message)
+            result = await orchestrator.run_chat_turn(
+                session, str(session_id), body.message, quota_guard=quota_guard
+            )
         except Exception:
             # Provider outage / missing API key / unexpected failure: surface a
             # clean error event instead of an aborted stream so the UI can react.
