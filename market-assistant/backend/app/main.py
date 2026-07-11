@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.alert_subscriptions import router as alert_subscriptions_router
 from app.api.backtests import router as backtests_router
@@ -13,10 +14,22 @@ from app.api.ws_candles import router as ws_candles_router
 from app.api.ws_scanner import router as ws_scanner_router
 from app.api.ws_signals import router as ws_signals_router
 from app.core.config import get_settings
+from app.core.logging import configure_logging
+from app.core.sentry import init_sentry
 
 
 def create_app() -> FastAPI:
+    configure_logging()
+    init_sentry()
     app = FastAPI(title="Market Analysis Assistant")
+    # Browser origins are locked to the configured allowlist; never "*".
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=get_settings().cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.include_router(health_router)
     app.include_router(candles_router)
     app.include_router(ws_candles_router)
