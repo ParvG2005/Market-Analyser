@@ -14,6 +14,7 @@ from app.core.config import get_settings
 from app.core.deps import get_redis, get_sessionmaker
 from app.ingest.buffer import CandleBuffer, SessionFactory
 from app.ingest.metrics import SupportsRedisKV
+from app.core.universe import enforce_universe_cap
 from app.ingest.universe import SupportsFetchTickers, get_top_n_by_volume
 from app.ingest.ws_consumer import BinanceWSConsumer, WSConnection
 from app.models.instrument import Instrument
@@ -91,6 +92,8 @@ async def run_ingest(
         symbols = await get_top_n_by_volume(
             exchange_obj, settings.UNIVERSE_SIZE, settings.UNIVERSE_QUOTE_ASSET
         )
+        # Free-tier survival: hard-cap the crypto universe before subscribing.
+        symbols = enforce_universe_cap(symbols, "crypto", settings)
         symbol_to_instrument_id = await _ensure_instruments(session_factory, symbols)
         logger.info("ingest universe: %d symbols", len(symbol_to_instrument_id))
 

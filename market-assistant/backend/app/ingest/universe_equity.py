@@ -23,6 +23,13 @@ async def ensure_equity_instruments(session: AsyncSession) -> list[Instrument]:
     )
     existing = {i.symbol: i for i in result.scalars().all()}
 
+    # Free-tier survival: assert the equity universe stays within the NIFTY-50 cap.
+    from app.core.config import get_settings
+    from app.core.universe import enforce_universe_cap
+
+    normalized = [normalize_symbol(s) for s in NIFTY50_SYMBOLS]
+    enforce_universe_cap(normalized, "equity", get_settings())
+
     instruments: list[Instrument] = []
     for raw_symbol in NIFTY50_SYMBOLS:
         symbol = normalize_symbol(raw_symbol)
