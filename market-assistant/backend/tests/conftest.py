@@ -2,6 +2,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
+import pandas as pd
 import pytest
 import redis as redis_sync
 from alembic.config import Config
@@ -194,6 +195,14 @@ async def redis_client():
     if keys:
         await client.delete(*keys)
 
+    # Same hazard for the signal worker's dedup keyspace: a stale
+    # signal_dedup:{strategy}:{instrument_id}:{tf}:{bar_ts}:{direction} key from a
+    # previous run (fresh instrument_id + fixed fixture bar ts) would wrongly
+    # suppress the signal under test. Clear only this keyspace (never flushdb).
+    signal_keys = [k async for k in client.scan_iter(match="signal_dedup:*")]
+    if signal_keys:
+        await client.delete(*signal_keys)
+
     yield client
 
 
@@ -205,6 +214,43 @@ async def sample_instrument(db_session):
     db_session.add(instrument)
     await db_session.flush()
     return instrument
+
+
+@pytest.fixture
+async def seeded_instrument(db_session):
+    # Committed (savepoint released) so the API's own session — bound to the
+    # same shared connection via the `client` override — can read it.
+    instrument = Instrument(
+        symbol="ETH/USDT", asset_class="crypto", exchange="binance", active=True
+    )
+    db_session.add(instrument)
+    await db_session.commit()
+    return instrument
+
+
+@pytest.fixture
+async def seeded_signal(db_session):
+    from app.models.signal import Signal
+
+    instrument = Instrument(
+        symbol="SOL/USDT", asset_class="crypto", exchange="binance", active=True
+    )
+    db_session.add(instrument)
+    await db_session.flush()
+    signal = Signal(
+        instrument_id=instrument.id,
+        strategy="orb",
+        direction="long",
+        ts=datetime(2024, 6, 1, 12, 0, tzinfo=UTC),
+        confidence=0.7,
+        ref_entry=100.0,
+        ref_sl=99.0,
+        ref_tp=102.0,
+        meta={"note": "seed"},
+    )
+    db_session.add(signal)
+    await db_session.commit()
+    return signal
 
 
 @pytest.fixture
@@ -294,3 +340,62 @@ async def replay_synthetic_candles(db_session, redis_client):
             await db_session.flush()
 
     return _replay
+
+
+@pytest.fixture
+def fixture_trending_candles() -> pd.DataFrame:
+    """Synthetic 60-bar monotonically-rising OHLCV series (deterministic,
+    arithmetic-only) engineered so the repo's real `adx()` yields a strongly
+    trending last value (verified empirically: last ADX == 100.0, well above
+    any `min_adx_trend` threshold used in tests).
+
+    A clean, noise-free linear uptrend maximizes +DI relative to -DI (down
+    moves never occur), so ADX saturates at 100 — deliberately steep/clean
+    rather than a realistic price series, to make the gate's trend/range
+    branches unambiguous in tests.
+    """
+    n = 60
+    closes = [100.0 + i * 2.0 for i in range(n)]
+    highs = [c + 1.0 for c in closes]
+    lows = [c - 1.0 for c in closes]
+    opens = [c - 1.5 for c in closes]
+    volumes = [1_000.0] * n
+    return pd.DataFrame({"o": opens, "h": highs, "l": lows, "c": closes, "v": volumes})
+
+
+@pytest.fixture
+def fixture_orb_breakout_candles() -> list[CandleRow]:
+    """60-bar CandleRow series (unpersisted) engineered so the signal worker's
+    DataFrame satisfies BOTH real-code preconditions (verified empirically):
+
+      * ``adx_allows(df, mode="trend") is True`` — the clean monotonic uptrend
+        (adapted from ``fixture_trending_candles``) yields a last ADX of 100.0.
+      * ``get_strategy("orb").generate_signals(df, {"or_bars": 4, "rr": 2.0,
+        "min_rel_volume": 2.0})`` returns EXACTLY 1 long candidate — a 3x volume
+        spike at bar index 4 (rel_volume(4) == 3.0 >= 2.0) breaks above the
+        opening-range high (107) formed by bars 0..3. Fires: entry=108, sl=99
+        (OR low), tp=126.
+
+    Returned as ORM ``CandleRow`` objects because the worker's
+    ``load_recent_candles`` is monkeypatched to yield this list directly; the
+    worker converts OHLCV to float and reads ``.ts`` for the Signal timestamp.
+    """
+    n = 60
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    rows: list[CandleRow] = []
+    for i in range(n):
+        c = 100.0 + i * 2.0
+        v = 3_000.0 if i == 4 else 1_000.0
+        rows.append(
+            CandleRow(
+                instrument_id=0,
+                tf="15m",
+                ts=start + timedelta(minutes=15 * i),
+                o=c - 1.5,
+                h=c + 1.0,
+                l=c - 1.0,
+                c=c,
+                v=v,
+            )
+        )
+    return rows
