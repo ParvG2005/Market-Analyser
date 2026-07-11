@@ -19,7 +19,7 @@ async def test_rest_history_plus_live_ws_update_reflect_a_forming_candle(
             "to": "2024-01-01T01:00:00Z",
         },
     )
-    history = resp.json()
+    history = resp.json()["candles"]
     assert len(history) > 0
 
     # Simulate the ingest pipeline closing a new 1m bar and fanning it out over
