@@ -8,6 +8,7 @@ tool-activity and token events as ``text/event-stream``.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
@@ -23,6 +24,8 @@ from app.core.auth import get_current_user_id
 from app.core.deps import get_session
 from app.models.chat import ChatMessage, ChatSession
 from app.schemas.chat import ChatMessageOut, ChatSessionOut, ChatTurnRequest
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -92,7 +95,19 @@ async def stream_turn(
         raise HTTPException(status_code=404, detail="Session not found")
 
     async def event_stream() -> AsyncIterator[str]:
-        result = await orchestrator.run_chat_turn(session, str(session_id), body.message)
+        try:
+            result = await orchestrator.run_chat_turn(session, str(session_id), body.message)
+        except Exception:
+            # Provider outage / missing API key / unexpected failure: surface a
+            # clean error event instead of an aborted stream so the UI can react.
+            logger.exception("Chat turn failed for session %s", session_id)
+            yield _sse(
+                {
+                    "type": "error",
+                    "payload": {"message": "The assistant is unavailable right now."},
+                }
+            )
+            return
         for event in result.tool_events:
             yield _sse({"type": "tool_call", "payload": {"name": event.name, "ok": event.ok}})
         for token in result.answer.split(" "):

@@ -50,6 +50,7 @@ export function useChatStream(sessionId: string) {
         let buffer = "";
         let answer = "";
         let acc = "";
+        let streamError: string | null = null;
         const turnTools: ToolEventVM[] = [];
 
         for (;;) {
@@ -71,15 +72,21 @@ export function useChatStream(sessionId: string) {
               setToolEvents((prev) => [...prev, evt]);
             } else if (event.type === "done") {
               answer = String(event.payload.answer ?? acc);
+            } else if (event.type === "error") {
+              streamError = String(event.payload.message ?? "The assistant is unavailable right now.");
             }
           }
         }
 
-        appendMessage(sessionId, {
-          role: "assistant",
-          content: answer || acc,
-          toolEvents: turnTools.length > 0 ? turnTools : undefined,
-        });
+        if (streamError) {
+          setError(streamError);
+        } else {
+          appendMessage(sessionId, {
+            role: "assistant",
+            content: answer || acc,
+            toolEvents: turnTools.length > 0 ? turnTools : undefined,
+          });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
       } finally {
