@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from redis.asyncio.client import PubSub
 
 from app.core.auth import get_current_user_id_from_ws_token
@@ -20,7 +20,12 @@ async def _forward(pubsub: PubSub, websocket: WebSocket) -> None:
 
 @router.websocket("/ws/scanner/hits")
 async def scanner_hits_ws(websocket: WebSocket, token: str = Query(...)) -> None:
-    user_id = await get_current_user_id_from_ws_token(token)
+    try:
+        user_id = await get_current_user_id_from_ws_token(token)
+    except HTTPException:
+        # Auth failure: close the handshake cleanly with policy-violation 1008.
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     redis = get_redis()
     pubsub = redis.pubsub()
