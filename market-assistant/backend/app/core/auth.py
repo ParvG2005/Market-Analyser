@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, WebSocket, status
 from pydantic import ValidationError
 
 from app.core.config import get_settings
@@ -46,3 +46,18 @@ async def get_current_user_id_from_ws_token(token: str) -> uuid.UUID:
             except ValueError:
                 pass
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token") from None
+
+
+async def authenticate_ws(websocket: WebSocket, token: str) -> uuid.UUID | None:
+    """Verify a WebSocket ``?token=`` BEFORE ``accept()``.
+
+    On success returns the resolved user id. On failure closes the handshake
+    cleanly with policy-violation code 1008 and returns ``None`` — the caller
+    must ``return`` immediately without accepting. Shared by every ``/ws/*``
+    route so anonymous clients can never stream candles/signals/scan hits.
+    """
+    try:
+        return await get_current_user_id_from_ws_token(token)
+    except HTTPException:
+        await websocket.close(code=1008)
+        return None

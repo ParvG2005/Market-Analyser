@@ -39,13 +39,16 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      // Persists minimally (user + session) so a reload doesn't drop the UI
-      // back to signed-out before Supabase's own onAuthStateChange fires.
+      // Persist ONLY `user` for a fast first-paint after reload — never the
+      // session/access_token. supabase-js persists its own session, so
+      // duplicating the JWT under a second localStorage key only widens the
+      // token-theft surface. initAuth()/onAuthStateChange (wired in main.tsx)
+      // rehydrates the live session + token on load.
       name: "market-assistant-auth",
-      partialize: (state) => ({ user: state.user, session: state.session }),
+      partialize: (state) => ({ user: state.user }),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          state.isAuthenticated = state.session != null;
+          state.isAuthenticated = state.user != null;
         }
       },
     },

@@ -1,8 +1,9 @@
 import asyncio
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from redis.asyncio.client import PubSub
 
+from app.core.auth import authenticate_ws
 from app.core.deps import get_redis
 
 router = APIRouter()
@@ -20,7 +21,11 @@ async def _forward(pubsub: PubSub, websocket: WebSocket) -> None:
 
 
 @router.websocket("/ws/signals")
-async def ws_signals(websocket: WebSocket) -> None:
+async def ws_signals(websocket: WebSocket, token: str = Query(...)) -> None:
+    # Channels are keyed by symbol:tf (not per-user), so any valid token admits
+    # the connection; we only need to authenticate before accepting.
+    if await authenticate_ws(websocket, token) is None:
+        return  # authenticate_ws already closed the handshake (1008).
     await websocket.accept()
     redis = get_redis()
     pubsub = redis.pubsub()

@@ -6,9 +6,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Deployment environment. Only "test" mounts the test-only replay route
-    # (see app.main); never set to "test" in production.
-    env: str = "dev"
+    # Deployment environment. Fail-closed: the default is "prod" so a deploy
+    # that forgets to set ENV runs with the dev auth stub DISABLED (see
+    # app.core.auth._NON_PROD_ENVS, which admits the stub only for "dev"/"test").
+    # Local dev must set ENV=dev; the test suite pins ENV=test (tests/conftest).
+    # Only "test" mounts the test-only replay route (see app.main).
+    env: str = "prod"
     database_url: str = "postgresql+asyncpg://market:market@localhost:5434/market_assistant"
     redis_url: str = "redis://localhost:6379/0"
     UNIVERSE_SIZE: int = 20

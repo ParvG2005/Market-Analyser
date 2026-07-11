@@ -60,6 +60,25 @@ describe("authStore", () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
+  it("does not persist the access_token/session to localStorage", async () => {
+    mockedSignIn.mockResolvedValue({
+      data: { session: fakeSession, user: fakeUser },
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>);
+
+    await useAuthStore.getState().signIn("a@b.com", "password123");
+
+    const persisted = localStorage.getItem("market-assistant-auth");
+    expect(persisted).not.toBeNull();
+    // The full session (incl. access_token) must never be duplicated here;
+    // only `user` is persisted for a fast first-paint.
+    expect(persisted).not.toContain("fake-token");
+    expect(persisted).not.toContain("access_token");
+    const parsed = JSON.parse(persisted as string);
+    expect(parsed.state.user).toEqual(fakeUser);
+    expect(parsed.state.session).toBeUndefined();
+  });
+
   it("signOut clears session/user", async () => {
     useAuthStore.setState({
       session: fakeSession,

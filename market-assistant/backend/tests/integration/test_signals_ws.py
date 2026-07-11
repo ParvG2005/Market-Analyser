@@ -1,14 +1,23 @@
 import json
 import time
+import uuid
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from app.main import create_app
+
+# In the test env the WS token is accepted as a raw user UUID
+# (get_current_user_id_from_ws_token non-prod fallback). Channels are keyed by
+# symbol:tf, so any valid token admits the connection.
+TOKEN = uuid.uuid4()
+SIGNALS_URL = f"/ws/signals?token={TOKEN}"
 
 
 def test_ws_subscribe_receives_published_signal(redis_sync_client):
     with TestClient(create_app()) as client:
-        with client.websocket_connect("/ws/signals") as ws:
+        with client.websocket_connect(SIGNALS_URL) as ws:
             ws.send_json({"subscribe": "signals:BTC/USDT:15m"})
             time.sleep(0.2)  # let the server complete SUBSCRIBE before we publish
 
@@ -33,7 +42,7 @@ def test_ws_subscribe_receives_published_signal(redis_sync_client):
 
 def test_ws_resubscribe_stops_forwarding_old_channel(redis_sync_client):
     with TestClient(create_app()) as client:
-        with client.websocket_connect("/ws/signals") as ws:
+        with client.websocket_connect(SIGNALS_URL) as ws:
             ws.send_json({"subscribe": "signals:BTC/USDT:15m"})
             time.sleep(0.2)
             ws.send_json({"subscribe": "signals:ETH/USDT:15m"})
@@ -45,3 +54,21 @@ def test_ws_resubscribe_stops_forwarding_old_channel(redis_sync_client):
 
             received = json.loads(ws.receive_text())
             assert received == eth_signal
+
+
+def test_ws_rejects_missing_token():
+    # No ?token= -> FastAPI's required Query(...) rejects the handshake before
+    # accept(); Starlette's TestClient surfaces that as WebSocketDisconnect.
+    with TestClient(create_app()) as client:
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws/signals"):
+                pass
+
+
+def test_ws_rejects_invalid_token():
+    # A non-UUID token fails both JWT verification and the raw-UUID fallback, so
+    # authenticate_ws closes the handshake (1008) before accept().
+    with TestClient(create_app()) as client:
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws/signals?token=not-a-valid-token"):
+                pass

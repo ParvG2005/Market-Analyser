@@ -10,6 +10,12 @@ os.environ.setdefault(
     "DATABASE_URL", "postgresql+asyncpg://market:market@localhost:5434/market_assistant"
 )
 
+# The config default is now ENV=prod (fail-closed auth). The whole suite relies
+# on the non-prod dev auth stub (X-Dev-User / raw-UUID WS tokens), so pin
+# ENV=test here — BEFORE the first get_settings() (lru_cache) call at import
+# time. setdefault respects an explicit ENV export but gives CI/local a test env.
+os.environ.setdefault("ENV", "test")
+
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
