@@ -1,4 +1,5 @@
 import math
+from typing import Any
 
 import pandas as pd
 
@@ -7,7 +8,7 @@ from app.backtest.costs import TradeCosts
 TRADING_PERIODS_PER_YEAR = 252
 
 
-def compute_stats(equity_curve: pd.Series, trades: list[TradeCosts]) -> dict:
+def compute_stats(equity_curve: pd.Series, trades: list[TradeCosts]) -> dict[str, Any]:
     returns = equity_curve.pct_change().dropna()
 
     if len(returns) < 2 or returns.std(ddof=1) == 0:

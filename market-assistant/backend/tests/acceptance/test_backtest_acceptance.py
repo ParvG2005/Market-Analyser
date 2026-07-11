@@ -19,7 +19,10 @@ def _six_months_hourly_btc_like_series():
     steps = rng.normal(loc=0.0, scale=50.0, size=n)
     close = 30_000.0 + np.cumsum(steps)
     close = np.maximum(close, 1_000.0)  # keep price positive
-    return pd.DataFrame({"o": close, "h": close * 1.001, "l": close * 0.999, "c": close, "v": 1.0}, index=idx)
+    return pd.DataFrame(
+        {"o": close, "h": close * 1.001, "l": close * 0.999, "c": close, "v": 1.0},
+        index=idx,
+    )
 
 
 @pytest.mark.acceptance

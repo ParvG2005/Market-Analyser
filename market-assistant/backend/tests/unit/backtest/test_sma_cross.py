@@ -3,6 +3,7 @@ import pandas as pd
 
 from app.backtest.strategies.sma_cross import SmaCrossStrategy
 
+
 def _sine_candles(n=60, period=20, amplitude=10.0, base=100.0):
     # Deterministic sine wave, 1 point per "bar", no noise, so crossovers
     # are exactly reproducible and hand-verifiable.

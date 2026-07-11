@@ -1,3 +1,5 @@
+from typing import Any
+
 import pandas as pd
 
 
@@ -6,7 +8,7 @@ class SmaCrossStrategy:
     exit on fast-crosses-below-slow. `params` requires 'fast' and 'slow'
     window lengths (int, fast < slow)."""
 
-    def generate_signals(self, candles: pd.DataFrame, params: dict) -> pd.DataFrame:
+    def generate_signals(self, candles: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
         fast_window = int(params["fast"])
         slow_window = int(params["slow"])
         if fast_window >= slow_window:

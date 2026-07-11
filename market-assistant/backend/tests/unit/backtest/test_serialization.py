@@ -16,13 +16,21 @@ def test_serialize_equity_curve_round_trips_timestamps_and_values():
     ]
 
 def test_stats_hash_is_deterministic_and_order_independent():
-    stats_a = {"sharpe": 1.234, "max_dd": -0.05, "win_rate": 0.6, "net_return": 0.12, "trade_count": 5}
-    stats_b = {"trade_count": 5, "net_return": 0.12, "win_rate": 0.6, "max_dd": -0.05, "sharpe": 1.234}
+    stats_a = {
+        "sharpe": 1.234, "max_dd": -0.05, "win_rate": 0.6, "net_return": 0.12, "trade_count": 5,
+    }
+    stats_b = {
+        "trade_count": 5, "net_return": 0.12, "win_rate": 0.6, "max_dd": -0.05, "sharpe": 1.234,
+    }
 
     assert stats_hash(stats_a) == stats_hash(stats_b)
 
 def test_stats_hash_differs_for_different_stats():
-    stats_a = {"sharpe": 1.234, "max_dd": -0.05, "win_rate": 0.6, "net_return": 0.12, "trade_count": 5}
-    stats_c = {"sharpe": 1.235, "max_dd": -0.05, "win_rate": 0.6, "net_return": 0.12, "trade_count": 5}
+    stats_a = {
+        "sharpe": 1.234, "max_dd": -0.05, "win_rate": 0.6, "net_return": 0.12, "trade_count": 5,
+    }
+    stats_c = {
+        "sharpe": 1.235, "max_dd": -0.05, "win_rate": 0.6, "net_return": 0.12, "trade_count": 5,
+    }
 
     assert stats_hash(stats_a) != stats_hash(stats_c)

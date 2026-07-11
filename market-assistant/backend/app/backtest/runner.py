@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -13,13 +14,13 @@ from app.backtest.stats import compute_stats
 class BacktestResult:
     equity_curve: pd.Series
     trades: list[TradeCosts]
-    stats: dict
+    stats: dict[str, Any]
 
 
 def run_backtest(
     strategy: Strategy,
     candles: pd.DataFrame,
-    params: dict,
+    params: dict[str, Any],
     fees_bps: float,
     slippage_bps: float,
     init_cash: float = 10_000.0,

@@ -24,4 +24,6 @@ class Backtest(Base):
     stats: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     equity_curve: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now()
+    )

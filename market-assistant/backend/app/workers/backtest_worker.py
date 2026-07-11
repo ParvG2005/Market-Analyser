@@ -1,5 +1,7 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
 
 import pandas as pd
 from sqlalchemy import select
@@ -16,6 +18,11 @@ from app.models.instrument import Instrument
 STRATEGY_REGISTRY = {
     "sma_cross": SmaCrossStrategy,
 }
+
+
+def _to_float(value: Decimal | None) -> float:
+    """Coerce a nullable Numeric column to float (missing OHLCV → 0.0)."""
+    return float(value) if value is not None else 0.0
 
 
 async def load_candles_df(
@@ -47,11 +54,11 @@ async def load_candles_df(
     index = pd.DatetimeIndex([r.ts for r in rows], name="ts")
     return pd.DataFrame(
         {
-            "o": [float(r.o) for r in rows],
-            "h": [float(r.h) for r in rows],
-            "l": [float(r.l) for r in rows],
-            "c": [float(r.c) for r in rows],
-            "v": [float(r.v) for r in rows],
+            "o": [_to_float(r.o) for r in rows],
+            "h": [_to_float(r.h) for r in rows],
+            "l": [_to_float(r.l) for r in rows],
+            "c": [_to_float(r.c) for r in rows],
+            "v": [_to_float(r.v) for r in rows],
         },
         index=index,
     )
@@ -62,14 +69,19 @@ async def _run(session: AsyncSession, backtest_id: str) -> None:
     if bt is None:
         return
     try:
-        strategy = STRATEGY_REGISTRY[bt.strategy]()
-        symbol = bt.universe["symbol"]
-        tf = bt.universe["tf"]
+        strategy_name = bt.strategy
+        params = bt.params
+        universe = bt.universe
+        if strategy_name is None or params is None or universe is None:
+            raise ValueError("backtest row missing strategy/params/universe")
+        strategy = STRATEGY_REGISTRY[strategy_name]()
+        symbol = universe["symbol"]
+        tf = universe["tf"]
         candles = await load_candles_df(session, symbol, tf, bt.start_ts, bt.end_ts)
         result = run_backtest(
             strategy=strategy,
             candles=candles,
-            params=bt.params,
+            params=params,
             fees_bps=float(bt.fees_bps),
             slippage_bps=float(bt.slippage_bps),
         )
@@ -82,7 +94,7 @@ async def _run(session: AsyncSession, backtest_id: str) -> None:
     await session.commit()
 
 
-async def run_backtest_job(ctx: dict, backtest_id: str) -> None:
+async def run_backtest_job(ctx: dict[str, Any], backtest_id: str) -> None:
     session = ctx.get("db_session")
     if session is not None:
         await _run(session, backtest_id)
