@@ -327,6 +327,52 @@ a { color: inherit; text-decoration: none; }
 .ri-btn:hover { color: var(--ink); border-color: var(--accent); }
 .ri-del:hover { color: var(--down); border-color: var(--down); }
 
+/* ---------- strategies page ---------- */
+.strat-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.strat-scope {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 650;
+  color: var(--ink-dim); background: var(--panel); border: 1px solid var(--line-strong);
+  border-radius: 999px; padding: 5px var(--space-3); letter-spacing: 0.01em;
+}
+.strat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-4); margin: var(--space-4) 0; align-items: start; }
+
+.preset-card { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.pc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.pc-title { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.pc-title h3 { margin: 0; font-size: var(--text-md); font-weight: 650; letter-spacing: -0.01em; }
+
+.pc-switch { display: inline-flex; align-items: center; gap: var(--space-2); background: none; border: none; padding: 0; cursor: pointer; color: var(--ink-dim); font: inherit; }
+.pc-switch-track { width: 34px; height: 18px; border-radius: 999px; background: var(--line-strong); position: relative; transition: background 0.16s ease; flex-shrink: 0; }
+.pc-switch-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink-faint); transition: transform 0.16s ease, background 0.16s ease; }
+.pc-switch.on .pc-switch-track { background: var(--accent); }
+.pc-switch.on .pc-switch-thumb { transform: translateX(16px); background: var(--accent-ink); }
+.pc-switch-txt { font-size: var(--text-xs); font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em; }
+.pc-switch.on .pc-switch-txt { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .pc-switch-track, .pc-switch-thumb { transition: none; } }
+
+.param-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--space-2) var(--space-3); }
+.pf-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.pf-label { font-size: var(--text-xs); color: var(--ink-dim); font-weight: 600; }
+.pf-input { background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 7px 9px; color: var(--ink); font: inherit; font-size: 12px; }
+.pf-input:focus { outline: none; border-color: var(--accent); }
+
+.pc-actions { display: flex; }
+.pc-run { flex: 1; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 9px var(--space-4); font: inherit; font-weight: 650; cursor: pointer; }
+.pc-run:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
+.pc-run:disabled { opacity: 0.6; cursor: progress; }
+
+.pc-err { font-size: var(--text-sm); color: var(--down); margin: 0; }
+
+.pc-stats { border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.pc-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: var(--space-2) var(--space-3); }
+.ps-stat { display: flex; flex-direction: column; gap: 2px; }
+.ps-stat-k { font-size: var(--text-xs); color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+.ps-stat-v { font-size: var(--text-md); font-weight: 500; }
+.pc-stats-note { font-size: var(--text-xs); color: var(--ink-faint); font-style: italic; margin: var(--space-3) 0 0; }
+
+@media (max-width: 900px) { .strat-grid { grid-template-columns: 1fr; } }
+
 /* hits feed */
 .hits-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .hit-item { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); background: var(--panel-2); }
