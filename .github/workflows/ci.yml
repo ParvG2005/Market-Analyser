@@ -69,3 +69,34 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
+
+  e2e:
+    runs-on: ubuntu-latest
+    # Run in the pinned Playwright image so visual snapshot baselines (generated
+    # in this same image) render identically — the usual cross-platform AA drift
+    # that makes screenshot tests flaky can't happen when the renderer matches.
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-jammy
+    defaults:
+      run:
+        working-directory: market-assistant/frontend
+    env:
+      # Dummy Supabase build env: supabase-js derives its localStorage session
+      # key from the URL, so the ref (127) must match the sb-127-auth-token that
+      # _auth-helper.ts seeds — else every spec redirects to /login and fails.
+      # The suite is hermetic (each spec stubs fetch/WebSocket/SSE), so no live
+      # backend, Postgres, or Redis is needed here.
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_ANON_KEY: test-anon-key
+      VITE_API_URL: http://localhost:8000
+      VITE_WS_URL: ws://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: market-assistant/frontend/playwright-report
+          retention-days: 7
