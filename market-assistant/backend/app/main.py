@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.alert_subscriptions import router as alert_subscriptions_router
 from app.api.backtests import router as backtests_router
 from app.api.candles import router as candles_router
 from app.api.chat import router as chat_router
@@ -22,6 +23,7 @@ def create_app() -> FastAPI:
     app.include_router(ws_signals_router)
     app.include_router(ws_scanner_router)
     app.include_router(scanner_router)
+    app.include_router(alert_subscriptions_router)
     app.include_router(instruments_router)
     app.include_router(backtests_router)
     app.include_router(strategies_router)
