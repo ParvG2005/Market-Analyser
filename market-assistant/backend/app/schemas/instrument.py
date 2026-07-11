@@ -1,9 +1,13 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
+
+AssetClass = Literal["crypto", "equity"]
 
 
 class InstrumentIn(BaseModel):
     symbol: str
-    asset_class: str
+    asset_class: AssetClass
     exchange: str
 
 
@@ -16,7 +20,7 @@ class InstrumentOut(BaseModel):
 
     id: int
     symbol: str
-    asset_class: str
+    asset_class: AssetClass
     exchange: str
     active: bool
     delayed: bool

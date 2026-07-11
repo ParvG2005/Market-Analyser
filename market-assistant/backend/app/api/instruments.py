@@ -1,3 +1,5 @@
+from typing import cast
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,7 +8,7 @@ from app.core.config import get_settings
 from app.core.deps import get_session
 from app.ingest.universe_equity import ensure_equity_instruments
 from app.models.instrument import Instrument
-from app.schemas.instrument import InstrumentIn, InstrumentOut, InstrumentPatch
+from app.schemas.instrument import AssetClass, InstrumentIn, InstrumentOut, InstrumentPatch
 
 router = APIRouter(prefix="/api/instruments", tags=["instruments"])
 
@@ -17,7 +19,7 @@ def _to_out(instrument: Instrument) -> InstrumentOut:
     return InstrumentOut(
         id=instrument.id,
         symbol=instrument.symbol,
-        asset_class=instrument.asset_class,
+        asset_class=cast(AssetClass, instrument.asset_class),
         exchange=instrument.exchange,
         active=instrument.active,
         delayed=is_delayed,

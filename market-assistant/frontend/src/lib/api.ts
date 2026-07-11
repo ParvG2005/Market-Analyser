@@ -74,3 +74,50 @@ export async function seedNifty50(): Promise<InstrumentDto[]> {
   const body: InstrumentApiShape[] = await res.json();
   return body.map(fromApi);
 }
+
+// --- Chat (Phase 10) ---
+
+export interface ChatSessionDto {
+  id: string;
+  createdAt: string;
+}
+
+interface ChatSessionApiShape {
+  id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface ChatMessageDto {
+  role: "user" | "assistant" | "tool";
+  content: string;
+}
+
+interface ChatMessageApiShape {
+  role: "user" | "assistant" | "tool";
+  content: string | null;
+}
+
+export function chatTurnUrl(sessionId: string): string {
+  return `${API_BASE}/api/chat/sessions/${sessionId}/turns`;
+}
+
+export async function createSession(): Promise<ChatSessionDto> {
+  const res = await fetch(`${API_BASE}/api/chat/sessions`, { method: "POST" });
+  const body: ChatSessionApiShape = await res.json();
+  return { id: body.id, createdAt: body.created_at };
+}
+
+export async function listSessions(): Promise<ChatSessionDto[]> {
+  const res = await fetch(`${API_BASE}/api/chat/sessions`);
+  const body: ChatSessionApiShape[] = await res.json();
+  return body.map((s) => ({ id: s.id, createdAt: s.created_at }));
+}
+
+export async function getSessionMessages(sessionId: string): Promise<ChatMessageDto[]> {
+  const res = await fetch(`${API_BASE}/api/chat/sessions/${sessionId}/messages`);
+  const body: ChatMessageApiShape[] = await res.json();
+  return body
+    .filter((m) => m.role !== "tool" && m.content)
+    .map((m) => ({ role: m.role, content: m.content ?? "" }));
+}

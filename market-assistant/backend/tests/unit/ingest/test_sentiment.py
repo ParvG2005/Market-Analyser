@@ -1,4 +1,3 @@
-import sys
 
 from app.ingest import sentiment
 from app.ingest.sentiment import score_batch
@@ -48,7 +47,17 @@ def test_empty_batch_returns_empty(monkeypatch):
 
 def test_importing_sentiment_does_not_import_transformers():
     # The heavy ML libraries must be loaded lazily inside _get_pipeline, so a
-    # bare import of the module (as done at the top of this file) must not drag
-    # transformers/torch into the interpreter.
-    assert "transformers" not in sys.modules
-    assert "torch" not in sys.modules
+    # bare import of the module must not drag transformers/torch into the
+    # interpreter. Checked in a FRESH subprocess so other tests that legitimately
+    # load transformers/torch earlier in this session (e.g. the KB embedder) can't
+    # pollute the global sys.modules this assertion inspects.
+    import subprocess
+    import sys as _sys
+
+    code = (
+        "import sys; import app.ingest.sentiment;"
+        " assert 'transformers' not in sys.modules, 'transformers imported eagerly';"
+        " assert 'torch' not in sys.modules, 'torch imported eagerly'"
+    )
+    result = subprocess.run([_sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

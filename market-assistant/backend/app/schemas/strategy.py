@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class StrategyMeta(BaseModel):
@@ -67,7 +67,10 @@ class MiniBacktestRequest(BaseModel):
     params: dict[str, Any] | None = None
     fees_bps: int = 10
     slippage_bps: int = 5
-    window: int = 60
+    # Rolling lookback the preset's generate_signals sees per bar. Clamped to a
+    # sane floor: below ~20 bars indicators (ATR/ADX period 14, EMA warmup)
+    # cannot warm up and session-anchored presets (ORB/VWAP) misbehave.
+    window: int = Field(default=60, ge=20, le=2000)
 
 
 class MiniBacktestResponse(BaseModel):

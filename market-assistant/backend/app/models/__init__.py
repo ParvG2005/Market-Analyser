@@ -8,6 +8,7 @@ class Base(DeclarativeBase):
 # Import models so they register on Base.metadata (e.g. for alembic env target_metadata).
 from app.models.backtest import Backtest  # noqa: E402
 from app.models.candle import CandleRow  # noqa: E402
+from app.models.chat import ChatMessage, ChatSession, KBChunk  # noqa: E402
 from app.models.instrument import Instrument  # noqa: E402
 from app.models.ml_model import MLModel  # noqa: E402
 from app.models.news_item import NewsItem  # noqa: E402
@@ -20,7 +21,10 @@ __all__ = [
     "Backtest",
     "Base",
     "CandleRow",
+    "ChatMessage",
+    "ChatSession",
     "Instrument",
+    "KBChunk",
     "MLModel",
     "NewsItem",
     "ScanHit",
