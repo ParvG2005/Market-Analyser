@@ -7,6 +7,7 @@ import { ChartsPage } from "./pages/Charts";
 import { Chat } from "./pages/Chat";
 import { Home } from "./pages/Home";
 import { ML } from "./pages/ML";
+import MLModels from "./pages/MLModels";
 import { Scanner } from "./pages/Scanner";
 import { Settings } from "./pages/Settings";
 import { Strategies } from "./pages/Strategies";
@@ -28,6 +29,7 @@ const routes = [
       { path: "/analytics", element: <Analytics /> },
       { path: "/backtests/:id", element: <BacktestResults /> },
       { path: "/ml", element: <ML /> },
+      { path: "/ml/:id", element: <MLModels /> },
       { path: "/chat", element: <Chat /> },
       { path: "/settings", element: <Settings /> },
     ],

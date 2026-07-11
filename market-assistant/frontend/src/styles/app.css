@@ -437,3 +437,31 @@ a { color: inherit; text-decoration: none; }
 .hit-payload { font-size: var(--text-sm); color: var(--ink-dim); }
 .hit-spark { display: inline-flex; color: var(--accent); flex-shrink: 0; }
 .sparkline { display: block; }
+
+/* --- ML model detail (Phase 9) --- */
+.ml-detail { display: flex; flex-direction: column; gap: var(--space-4); }
+.ml-detail .panel + .panel { margin-top: 0; }
+.ml-confidence-lede { font-size: var(--text-md); color: var(--ink); margin: 0 0 var(--space-4); line-height: 1.5; }
+.ml-confidence-lede strong { font-weight: 650; }
+.ml-confidence-figure { color: var(--accent); font-size: var(--text-lg); }
+
+.ml-bars { display: flex; flex-direction: column; gap: var(--space-2); }
+.ml-bar-row { display: grid; grid-template-columns: 148px 1fr 64px; align-items: center; gap: var(--space-3); }
+.ml-bar-label { font-size: 12px; color: var(--ink-dim); }
+.ml-bar-track { position: relative; height: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.ml-bar-fill { display: block; height: 100%; border-radius: var(--radius-sm); background: var(--neutral); }
+.ml-bar-model { background: var(--ink-dim); }
+.ml-bar-model.is-edge { background: var(--up); }
+.ml-bar-buy_hold { background: var(--chart-vwap); }
+.ml-bar-random { background: var(--ink-faint); }
+.ml-bar-feature { background: var(--accent); }
+.ml-bar-val { font-size: 12px; color: var(--ink); text-align: right; }
+
+.ml-folds { display: flex; align-items: flex-end; gap: var(--space-3); margin-top: var(--space-4); height: 120px; }
+.ml-fold-col { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); flex: 1; height: 100%; justify-content: flex-end; }
+.ml-fold-bar-track { display: flex; align-items: flex-end; width: 60%; max-width: 40px; height: 80px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.ml-fold-bar-fill { width: 100%; }
+.ml-fold-bar-fill.is-up { background: var(--up); }
+.ml-fold-bar-fill.is-down { background: var(--down); }
+.ml-fold-acc { font-size: var(--text-xs); color: var(--ink); }
+.ml-fold-label { font-size: var(--text-xs); color: var(--ink-faint); }
