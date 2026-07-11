@@ -1,0 +1,68 @@
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
+export interface InstrumentDto {
+  id: number;
+  symbol: string;
+  assetClass: string;
+  exchange: string;
+  active: boolean;
+  delayed: boolean;
+  delayMinutes: number;
+}
+
+interface InstrumentApiShape {
+  id: number;
+  symbol: string;
+  asset_class: string;
+  exchange: string;
+  active: boolean;
+  delayed: boolean;
+  delay_minutes: number;
+}
+
+function fromApi(raw: InstrumentApiShape): InstrumentDto {
+  return {
+    id: raw.id,
+    symbol: raw.symbol,
+    assetClass: raw.asset_class,
+    exchange: raw.exchange,
+    active: raw.active,
+    delayed: raw.delayed,
+    delayMinutes: raw.delay_minutes,
+  };
+}
+
+export async function getInstruments(assetClass?: string): Promise<InstrumentDto[]> {
+  const params = assetClass ? `?asset_class=${encodeURIComponent(assetClass)}` : "";
+  const res = await fetch(`${API_BASE}/api/instruments${params}`);
+  const body: InstrumentApiShape[] = await res.json();
+  return body.map(fromApi);
+}
+
+export async function createInstrument(payload: {
+  symbol: string;
+  assetClass: string;
+  exchange: string;
+}): Promise<InstrumentDto> {
+  const res = await fetch(`${API_BASE}/api/instruments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      symbol: payload.symbol,
+      asset_class: payload.assetClass,
+      exchange: payload.exchange,
+    }),
+  });
+  const body: InstrumentApiShape = await res.json();
+  return fromApi(body);
+}
+
+export async function updateInstrument(id: number, active: boolean): Promise<InstrumentDto> {
+  const res = await fetch(`${API_BASE}/api/instruments/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ active }),
+  });
+  const body: InstrumentApiShape = await res.json();
+  return fromApi(body);
+}

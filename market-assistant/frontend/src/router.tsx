@@ -11,6 +11,7 @@ import { Scanner } from "./pages/Scanner";
 import { Settings } from "./pages/Settings";
 import { Strategies } from "./pages/Strategies";
 import { Trends } from "./pages/Trends";
+import Universe from "./pages/Universe";
 import { WatchlistPage } from "./pages/Watchlist";
 
 const routes = [
@@ -20,6 +21,7 @@ const routes = [
       { path: "/", element: <Home /> },
       { path: "/charts", element: <ChartsPage /> },
       { path: "/watchlist", element: <WatchlistPage /> },
+      { path: "/universe", element: <Universe /> },
       { path: "/scanner", element: <Scanner /> },
       { path: "/strategies", element: <Strategies /> },
       { path: "/trends", element: <Trends /> },
