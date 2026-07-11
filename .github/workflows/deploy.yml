@@ -89,6 +89,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
+      contents: read       # checkout needs this; specifying permissions drops unlisted scopes
       pull-requests: write
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
