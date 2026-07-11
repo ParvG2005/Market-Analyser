@@ -18,3 +18,6 @@ vite.config.d.ts
 
 # local secrets (Supabase anon key etc.) — never commit
 .env
+
+# Vercel CLI project link (org/project IDs) — never commit
+.vercel/

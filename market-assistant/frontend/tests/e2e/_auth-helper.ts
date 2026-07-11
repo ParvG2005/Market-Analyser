@@ -35,7 +35,10 @@ export async function presetAuth(page: Page) {
       window.localStorage.setItem(
         "sb-127-auth-token",
         JSON.stringify({
-          access_token: "test-access-token",
+          // Raw user UUID: the backend's non-prod auth accepts this as both a
+          // Bearer (get_current_user_id) and a WS ?token= (authenticate_ws),
+          // scoping API data to this user. A non-UUID string 401s/403s.
+          access_token: user.id,
           refresh_token: "test-refresh-token",
           token_type: "bearer",
           // Far future (year ~2286) so auth-js treats the session as unexpired
