@@ -316,3 +316,41 @@ def fixture_trending_candles() -> pd.DataFrame:
     opens = [c - 1.5 for c in closes]
     volumes = [1_000.0] * n
     return pd.DataFrame({"o": opens, "h": highs, "l": lows, "c": closes, "v": volumes})
+
+
+@pytest.fixture
+def fixture_orb_breakout_candles() -> list[CandleRow]:
+    """60-bar CandleRow series (unpersisted) engineered so the signal worker's
+    DataFrame satisfies BOTH real-code preconditions (verified empirically):
+
+      * ``adx_allows(df, mode="trend") is True`` — the clean monotonic uptrend
+        (adapted from ``fixture_trending_candles``) yields a last ADX of 100.0.
+      * ``get_strategy("orb").generate_signals(df, {"or_bars": 4, "rr": 2.0,
+        "min_rel_volume": 2.0})`` returns EXACTLY 1 long candidate — a 3x volume
+        spike at bar index 4 (rel_volume(4) == 3.0 >= 2.0) breaks above the
+        opening-range high (107) formed by bars 0..3. Fires: entry=108, sl=99
+        (OR low), tp=126.
+
+    Returned as ORM ``CandleRow`` objects because the worker's
+    ``load_recent_candles`` is monkeypatched to yield this list directly; the
+    worker converts OHLCV to float and reads ``.ts`` for the Signal timestamp.
+    """
+    n = 60
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    rows: list[CandleRow] = []
+    for i in range(n):
+        c = 100.0 + i * 2.0
+        v = 3_000.0 if i == 4 else 1_000.0
+        rows.append(
+            CandleRow(
+                instrument_id=0,
+                tf="15m",
+                ts=start + timedelta(minutes=15 * i),
+                o=c - 1.5,
+                h=c + 1.0,
+                l=c - 1.0,
+                c=c,
+                v=v,
+            )
+        )
+    return rows
