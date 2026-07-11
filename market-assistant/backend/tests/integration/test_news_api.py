@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -7,7 +7,7 @@ from app.models.news_item import NewsItem
 
 @pytest.mark.asyncio
 async def test_news_endpoint_returns_items_newest_first(client, db_session):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db_session.add_all(
         [
             NewsItem(
@@ -41,7 +41,7 @@ async def test_news_endpoint_returns_items_newest_first(client, db_session):
 
 @pytest.mark.asyncio
 async def test_news_endpoint_filters_by_symbol(client, db_session):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db_session.add_all(
         [
             NewsItem(

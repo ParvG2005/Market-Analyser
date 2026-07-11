@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -12,7 +12,7 @@ async def _seed_two_crypto_with_candles(db_session):
     db_session.add_all([btc, eth])
     await db_session.flush()
 
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
     rows = []
     for i in range(60):
         ts = start + timedelta(hours=i)

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -8,7 +8,7 @@ from app.analytics.seasonality import compute_seasonality
 
 def _monday_up_series(days: int = 70) -> pd.DataFrame:
     # Daily closes: every Monday closes +5% vs the prior day, all other days flat.
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)  # 2024-01-01 is a Monday
+    start = datetime(2024, 1, 1, tzinfo=UTC)  # 2024-01-01 is a Monday
     ts_list = []
     closes = []
     price = 100.0

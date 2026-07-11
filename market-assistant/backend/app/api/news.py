@@ -17,7 +17,7 @@ async def list_news(
 ) -> list[NewsItemOut]:
     query = select(NewsItem)
     if symbol:
-        query = query.where(NewsItem.tickers.any(symbol))
+        query = query.where(NewsItem.tickers.contains([symbol]))
     query = query.order_by(NewsItem.published_at.desc()).limit(min(limit, 100))
     result = await session.execute(query)
     return [NewsItemOut.model_validate(n) for n in result.scalars().all()]
