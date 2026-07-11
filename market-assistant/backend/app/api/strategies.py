@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from typing import Any
 
@@ -160,13 +161,20 @@ async def mini_backtest(
             status_code=404, detail="no candle history for instrument/tf"
         )
     df = _candles_to_df(rows)
-    result = run_signal_backtest(
+    params = body.params if body.params is not None else strat.default_params()
+    # run_signal_backtest is a synchronous CPU-bound pandas walk (rolling
+    # generate_signals over up to 2000 bars); offload it so one request cannot
+    # block the event loop (and the live candle/scanner WS fan-out). The candles
+    # are already awaited and the run is pure in-memory pandas -- no DB/session
+    # access inside the thread.
+    result = await asyncio.to_thread(
+        run_signal_backtest,
         strat,
         df,
-        body.params or strat.default_params(),
-        fees_bps=body.fees_bps,
-        slippage_bps=body.slippage_bps,
-        window=body.window,
+        params,
+        body.fees_bps,
+        body.slippage_bps,
+        body.window,
     )
     return MiniBacktestResponse(
         stats={k: float(v) for k, v in result.stats.items()},
