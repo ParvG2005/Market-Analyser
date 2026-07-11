@@ -1,18 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { authedFetch } from "../lib/api";
 import type { RuleDefinition, ScanRule } from "../lib/scannerTypes";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 const RULES_KEY = ["scanner", "rules"] as const;
 
 async function fetchRules(): Promise<ScanRule[]> {
-  const res = await fetch(`${API_BASE}/api/scanner/rules`);
+  const res = await authedFetch(`${API_BASE}/api/scanner/rules`);
   if (!res.ok) throw new Error(`Failed to load rules (${res.status})`);
   return res.json();
 }
 
 async function postRule(input: { name: string; definition: RuleDefinition }): Promise<ScanRule> {
-  const res = await fetch(`${API_BASE}/api/scanner/rules`, {
+  const res = await authedFetch(`${API_BASE}/api/scanner/rules`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: input.name, definition: input.definition, enabled: true }),
@@ -22,7 +23,7 @@ async function postRule(input: { name: string; definition: RuleDefinition }): Pr
 }
 
 async function patchRule(input: { id: number; enabled: boolean }): Promise<ScanRule> {
-  const res = await fetch(`${API_BASE}/api/scanner/rules/${input.id}`, {
+  const res = await authedFetch(`${API_BASE}/api/scanner/rules/${input.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ enabled: input.enabled }),
@@ -32,7 +33,7 @@ async function patchRule(input: { id: number; enabled: boolean }): Promise<ScanR
 }
 
 async function deleteRuleReq(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/scanner/rules/${id}`, { method: "DELETE" });
+  const res = await authedFetch(`${API_BASE}/api/scanner/rules/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Failed to delete rule (${res.status})`);
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-import { chatTurnUrl } from "../lib/api";
+import { authedFetch, chatTurnUrl } from "../lib/api";
 import { useChatStore, type ToolEventVM } from "../stores/chatStore";
 
 interface StreamEvent {
@@ -36,7 +36,7 @@ export function useChatStream(sessionId: string) {
       setError(null);
 
       try {
-        const res = await fetch(chatTurnUrl(sessionId), {
+        const res = await authedFetch(chatTurnUrl(sessionId), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: trimmed }),

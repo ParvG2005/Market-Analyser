@@ -1,4 +1,32 @@
+import { getAccessToken } from "./auth";
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
+/**
+ * Bearer-authed transport wrapper around `fetch`. Every backend API call goes
+ * through this so the Supabase access token (if any) rides along as
+ * `Authorization: Bearer <token>`. Delegates straight to `fetch` when there's
+ * no active session — the backend's dev/test stub covers that path.
+ */
+export async function authedFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const token = await getAccessToken();
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return fetch(input, { ...init, headers });
+}
+
+/**
+ * Appends the Supabase access token to a WebSocket URL as `?token=<jwt>`,
+ * matching the backend's WS auth contract. Returns the base URL unchanged
+ * when there's no token (caller decides whether to still connect).
+ */
+export function buildWsUrl(baseUrl: string, token: string | null): string {
+  if (!token) return baseUrl;
+  const separator = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${separator}token=${encodeURIComponent(token)}`;
+}
 
 export interface InstrumentDto {
   id: number;
@@ -34,7 +62,7 @@ function fromApi(raw: InstrumentApiShape): InstrumentDto {
 
 export async function getInstruments(assetClass?: string): Promise<InstrumentDto[]> {
   const params = assetClass ? `?asset_class=${encodeURIComponent(assetClass)}` : "";
-  const res = await fetch(`${API_BASE}/api/instruments${params}`);
+  const res = await authedFetch(`${API_BASE}/api/instruments${params}`);
   const body: InstrumentApiShape[] = await res.json();
   return body.map(fromApi);
 }
@@ -44,7 +72,7 @@ export async function createInstrument(payload: {
   assetClass: string;
   exchange: string;
 }): Promise<InstrumentDto> {
-  const res = await fetch(`${API_BASE}/api/instruments`, {
+  const res = await authedFetch(`${API_BASE}/api/instruments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -58,7 +86,7 @@ export async function createInstrument(payload: {
 }
 
 export async function updateInstrument(id: number, active: boolean): Promise<InstrumentDto> {
-  const res = await fetch(`${API_BASE}/api/instruments/${id}`, {
+  const res = await authedFetch(`${API_BASE}/api/instruments/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ active }),
@@ -68,7 +96,7 @@ export async function updateInstrument(id: number, active: boolean): Promise<Ins
 }
 
 export async function seedNifty50(): Promise<InstrumentDto[]> {
-  const res = await fetch(`${API_BASE}/api/instruments/seed-nifty50`, {
+  const res = await authedFetch(`${API_BASE}/api/instruments/seed-nifty50`, {
     method: "POST",
   });
   const body: InstrumentApiShape[] = await res.json();
@@ -103,19 +131,19 @@ export function chatTurnUrl(sessionId: string): string {
 }
 
 export async function createSession(): Promise<ChatSessionDto> {
-  const res = await fetch(`${API_BASE}/api/chat/sessions`, { method: "POST" });
+  const res = await authedFetch(`${API_BASE}/api/chat/sessions`, { method: "POST" });
   const body: ChatSessionApiShape = await res.json();
   return { id: body.id, createdAt: body.created_at };
 }
 
 export async function listSessions(): Promise<ChatSessionDto[]> {
-  const res = await fetch(`${API_BASE}/api/chat/sessions`);
+  const res = await authedFetch(`${API_BASE}/api/chat/sessions`);
   const body: ChatSessionApiShape[] = await res.json();
   return body.map((s) => ({ id: s.id, createdAt: s.created_at }));
 }
 
 export async function getSessionMessages(sessionId: string): Promise<ChatMessageDto[]> {
-  const res = await fetch(`${API_BASE}/api/chat/sessions/${sessionId}/messages`);
+  const res = await authedFetch(`${API_BASE}/api/chat/sessions/${sessionId}/messages`);
   const body: ChatMessageApiShape[] = await res.json();
   return body
     .filter((m) => m.role !== "tool" && m.content)

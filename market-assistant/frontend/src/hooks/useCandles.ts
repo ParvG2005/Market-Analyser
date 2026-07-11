@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { authedFetch, buildWsUrl } from "../lib/api";
+import { useAccessToken } from "./useAccessToken";
 import { useWebSocket } from "./useWebSocket";
 
 export interface Candle {
@@ -34,7 +36,7 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
 
     let cancelled = false;
     const params = new URLSearchParams({ symbol, tf, from, to });
-    fetch(`${API_BASE}/candles?${params.toString()}`)
+    authedFetch(`${API_BASE}/candles?${params.toString()}`)
       .then((res) => res.json())
       .then((body: { candles: Candle[]; delayed?: boolean; delay_minutes?: number }) => {
         if (cancelled) return;
@@ -68,7 +70,9 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
     [],
   );
 
-  const { send, status } = useWebSocket(`${WS_BASE}/ws/candles`, { onMessage });
+  const token = useAccessToken();
+  const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/candles`, token) : "";
+  const { send, status } = useWebSocket(wsUrl, { onMessage });
 
   useEffect(() => {
     if (status === "open") {

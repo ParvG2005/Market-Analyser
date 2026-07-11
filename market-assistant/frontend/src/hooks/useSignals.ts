@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { authedFetch, buildWsUrl } from "../lib/api";
+import { useAccessToken } from "./useAccessToken";
 import { useWebSocket } from "./useWebSocket";
 
 /** Wire shape of one signal — mirrors the backend `SignalOut` schema. */
@@ -24,7 +26,7 @@ const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 async function fetchSignals(instrumentId: number, strategy?: string): Promise<SignalOut[]> {
   const params = new URLSearchParams({ instrument_id: String(instrumentId) });
   if (strategy) params.set("strategy", strategy);
-  const res = await fetch(`${API_BASE}/api/signals?${params.toString()}`);
+  const res = await authedFetch(`${API_BASE}/api/signals?${params.toString()}`);
   if (!res.ok) throw new Error(`Failed to load signals (${res.status})`);
   return res.json();
 }
@@ -62,7 +64,9 @@ export function useSignals(
     [],
   );
 
-  const { send, status } = useWebSocket(`${WS_BASE}/ws/signals`, { onMessage });
+  const token = useAccessToken();
+  const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/signals`, token) : "";
+  const { send, status } = useWebSocket(wsUrl, { onMessage });
 
   useEffect(() => {
     if (status === "open") {

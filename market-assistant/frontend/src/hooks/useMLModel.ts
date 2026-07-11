@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { authedFetch } from "../lib/api";
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 export interface FoldMetric {
@@ -23,7 +25,7 @@ export interface MLModelResponse {
 }
 
 async function fetchMLModel(id: string): Promise<MLModelResponse> {
-  const res = await fetch(`${API_BASE}/ml/models/${id}`);
+  const res = await authedFetch(`${API_BASE}/ml/models/${id}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch ML model ${id} (${res.status})`);
   }
