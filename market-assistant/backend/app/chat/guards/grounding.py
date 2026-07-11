@@ -11,7 +11,9 @@ scale references like ``0-100``) are treated as prose, not verifiable facts.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Any
 
 from app.schemas.chat import ToolResult
 
@@ -29,7 +31,7 @@ class GroundingResult:
     unsupported_claims: list[str]
 
 
-def _walk(obj):
+def _walk(obj: Any) -> Iterator[Any]:
     if isinstance(obj, dict):
         for v in obj.values():
             yield from _walk(v)
@@ -48,7 +50,7 @@ def _known_numbers(facts: list[ToolResult]) -> list[float]:
         for value in _walk(fact.data):
             if isinstance(value, bool):
                 continue
-            if isinstance(value, (int, float)):
+            if isinstance(value, int | float):
                 numbers.append(float(value))
     return numbers
 

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 
-def chunk_markdown(doc: str, text: str, max_tokens: int = 200) -> list[dict]:
+def chunk_markdown(doc: str, text: str, max_tokens: int = 200) -> list[dict[str, str]]:
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-    chunks: list[dict] = []
+    chunks: list[dict[str, str]] = []
     buffer: list[str] = []
     count = 0
     for para in paragraphs:

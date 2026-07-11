@@ -88,22 +88,26 @@ async def get_scan_hits(args: dict[str, Any], ctx: dict[str, Any]) -> dict[str, 
     }
 
 
-def _cache_key(strategy: str, symbol: str, tf: str, params: dict) -> str:
+def _cache_key(strategy: str, symbol: str, tf: str, params: dict[str, Any]) -> str:
     digest = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:12]
     return f"quick_backtest:{strategy}:{symbol}:{tf}:{digest}"
 
 
-async def _cache_get(key: str) -> dict | None:
+async def _cache_get(key: str) -> dict[str, Any] | None:
     from app.core.deps import get_redis
 
     raw = await get_redis().get(key)
     return json.loads(raw) if raw else None
 
 
-async def _cache_set(key: str, value: dict) -> None:
+async def _cache_set(key: str, value: dict[str, Any]) -> None:
     from app.core.deps import get_redis
 
     await get_redis().set(key, json.dumps(value), ex=3600)
+
+
+def _f(value: Any) -> float:
+    return float(value) if value is not None else 0.0
 
 
 def _candles_to_df(rows: list[CandleRow]) -> pd.DataFrame:
@@ -111,11 +115,11 @@ def _candles_to_df(rows: list[CandleRow]) -> pd.DataFrame:
         [
             {
                 "ts": r.ts,
-                "o": float(r.o),
-                "h": float(r.h),
-                "l": float(r.l),
-                "c": float(r.c),
-                "v": float(r.v),
+                "o": _f(r.o),
+                "h": _f(r.h),
+                "l": _f(r.l),
+                "c": _f(r.c),
+                "v": _f(r.v),
             }
             for r in rows
         ]

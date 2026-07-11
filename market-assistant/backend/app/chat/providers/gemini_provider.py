@@ -16,8 +16,9 @@ class GeminiProvider:
     async def stream(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> AsyncIterator[ProviderChunk]:
-        import google.generativeai as genai
+        import google.generativeai as _genai
 
+        genai: Any = _genai
         genai.configure(api_key=self.api_key)
         model = genai.GenerativeModel(self.model, tools=tools)
         response = await model.generate_content_async(messages, stream=True)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import BigInteger, ForeignKey, Text, func
@@ -45,5 +46,5 @@ class ChatMessage(Base):
     )
     role: Mapped[str] = mapped_column(Text, nullable=False)  # user | assistant | tool
     content: Mapped[str | None] = mapped_column(Text)
-    tool_calls: Mapped[list | dict | None] = mapped_column(JSONB)
+    tool_calls: Mapped[list[Any] | dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

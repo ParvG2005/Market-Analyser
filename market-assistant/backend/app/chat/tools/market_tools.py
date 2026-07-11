@@ -22,6 +22,10 @@ from app.scanner import indicators as ind
 _DEFAULT_LOOKBACK = 250
 
 
+def _f(value: Any) -> float:
+    return float(value) if value is not None else 0.0
+
+
 async def _resolve_instrument(db: AsyncSession, symbol: str) -> int | None:
     row = (
         await db.execute(
@@ -40,15 +44,15 @@ async def _load(db: AsyncSession, instrument_id: int, tf: str, n: int) -> list[C
 
 
 def _closes(rows: list[CandleRow]) -> list[float]:
-    return [float(r.c) for r in rows]
+    return [_f(r.c) for r in rows]
 
 
 def _series(rows: list[CandleRow]) -> tuple[list[float], list[float], list[float], list[float]]:
     return (
-        [float(r.h) for r in rows],
-        [float(r.l) for r in rows],
-        [float(r.c) for r in rows],
-        [float(r.v) for r in rows],
+        [_f(r.h) for r in rows],
+        [_f(r.l) for r in rows],
+        [_f(r.c) for r in rows],
+        [_f(r.v) for r in rows],
     )
 
 
@@ -69,7 +73,7 @@ async def get_price(args: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]
                 break
     if not rows:
         return {"symbol": symbol, "available": False}
-    return {"symbol": symbol, "tf": tf, "price": float(rows[-1].c)}
+    return {"symbol": symbol, "tf": tf, "price": _f(rows[-1].c)}
 
 
 async def get_candles(args: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
@@ -86,11 +90,11 @@ async def get_candles(args: dict[str, Any], ctx: dict[str, Any]) -> dict[str, An
         "candles": [
             {
                 "ts": r.ts.isoformat(),
-                "o": float(r.o),
-                "h": float(r.h),
-                "l": float(r.l),
-                "c": float(r.c),
-                "v": float(r.v),
+                "o": _f(r.o),
+                "h": _f(r.h),
+                "l": _f(r.l),
+                "c": _f(r.c),
+                "v": _f(r.v),
             }
             for r in rows
         ],

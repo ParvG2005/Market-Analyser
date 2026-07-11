@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, cast
 
 from app.chat.providers.base import ProviderChunk
 from app.core.config import get_settings
@@ -30,8 +30,8 @@ class AnthropicProvider:
         async with client.messages.stream(
             model=self.model,
             max_tokens=1024,
-            messages=messages,
-            tools=anthropic_tools,
+            messages=cast(Any, messages),
+            tools=cast(Any, anthropic_tools),
         ) as stream:
             async for event in stream:
                 if event.type == "content_block_delta" and event.delta.type == "text_delta":
@@ -39,7 +39,7 @@ class AnthropicProvider:
                 elif event.type == "content_block_stop" and (
                     getattr(event.content_block, "type", None) == "tool_use"
                 ):
-                    block = event.content_block
+                    block: Any = event.content_block
                     yield ProviderChunk(
                         type="tool_call",
                         tool_call=ToolCall(name=block.name, arguments=dict(block.input)),

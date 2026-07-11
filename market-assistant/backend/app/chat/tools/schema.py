@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-TOOL_SCHEMAS: list[dict] = [
+from typing import Any
+
+TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "name": "get_price",
         "description": "Latest price for a platform symbol.",
