@@ -26,4 +26,4 @@ async def drop_old_candles(
     stmt = delete(CandleRow).where(CandleRow.tf == tf, CandleRow.ts < cutoff)
     result = await session.execute(stmt)
     await session.commit()
-    return result.rowcount
+    return int(result.rowcount)  # type: ignore[attr-defined]

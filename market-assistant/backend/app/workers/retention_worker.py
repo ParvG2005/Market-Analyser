@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.config import get_settings
@@ -21,7 +21,7 @@ async def retention_job(ctx: dict[str, Any]) -> int:
             session,
             tf="1m",
             older_than_days=settings.candle_retention_days,
-            now=datetime.now(timezone.utc),
+            now=datetime.now(UTC),
         )
     logger.info("retention_job deleted %d old 1m candle rows", deleted)
     return deleted

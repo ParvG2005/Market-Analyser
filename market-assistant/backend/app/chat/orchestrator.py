@@ -46,7 +46,7 @@ async def run_chat_turn(
     session_id: str,
     user_message: str,
     provider: LLMProvider | None = None,
-    quota_guard: "LlmQuotaGuard | None" = None,
+    quota_guard: LlmQuotaGuard | None = None,
 ) -> ChatTurnResult:
     if provider is None:
         from app.chat.providers.factory import get_provider
@@ -59,7 +59,7 @@ async def run_chat_turn(
     if quota_guard is not None:
         from app.core.config import get_settings
 
-        if not quota_guard.check_and_increment(get_settings().LLM_PROVIDER):
+        if not await quota_guard.check_and_increment(get_settings().LLM_PROVIDER):
             db.add(ChatMessage(session_id=session_id, role="user", content=user_message))
             db.add(
                 ChatMessage(

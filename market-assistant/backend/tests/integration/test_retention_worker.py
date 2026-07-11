@@ -4,7 +4,7 @@ Runs against the real test Postgres (db_session fixture). 5m/1h rows are never
 touched regardless of age.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.core.retention import drop_old_candles
 from app.models.candle import CandleRow
@@ -13,7 +13,7 @@ from app.models.candle import CandleRow
 async def test_retention_deletes_only_1m_candles_older_than_60_days(
     db_session, sample_instrument
 ):
-    now = datetime(2026, 7, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 10, tzinfo=UTC)
     db_session.add_all(
         [
             CandleRow(instrument_id=sample_instrument.id, tf="1m",

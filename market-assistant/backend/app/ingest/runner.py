@@ -12,9 +12,9 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.core.config import get_settings
 from app.core.deps import get_redis, get_sessionmaker
+from app.core.universe import enforce_universe_cap
 from app.ingest.buffer import CandleBuffer, SessionFactory
 from app.ingest.metrics import SupportsRedisKV
-from app.core.universe import enforce_universe_cap
 from app.ingest.universe import SupportsFetchTickers, get_top_n_by_volume
 from app.ingest.ws_consumer import BinanceWSConsumer, WSConnection
 from app.models.instrument import Instrument

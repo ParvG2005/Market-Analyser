@@ -3,7 +3,7 @@
 No DB — a fake async session captures the statement so the test runs anywhere.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.core.retention import drop_old_candles
 
@@ -27,7 +27,7 @@ class _FakeAsyncSession:
 
 async def test_drop_old_candles_deletes_1m_older_than_cutoff_and_commits():
     session = _FakeAsyncSession()
-    now = datetime(2026, 7, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 10, tzinfo=UTC)
 
     deleted = await drop_old_candles(session, tf="1m", older_than_days=60, now=now)
 
