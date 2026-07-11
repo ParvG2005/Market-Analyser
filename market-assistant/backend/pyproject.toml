@@ -50,7 +50,10 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-markers = ["acceptance: phase-exit acceptance tests"]
+markers = [
+  "acceptance: phase-exit acceptance tests",
+  "smoke: post-deploy smoke tests against live staging URLs",
+]
 
 [tool.ruff]
 line-length = 100

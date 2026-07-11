@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_call: {}  # reused as the pre-deploy gate by deploy.yml
 
 jobs:
   backend:
@@ -35,6 +36,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # CI is not prod: keep the ENV=test path so tooling steps that build
+      # Settings outside pytest (e.g. `alembic upgrade head`) don't trip the
+      # prod fail-fast config guard, which requires managed-DB + real secrets.
+      ENV: test
       DATABASE_URL: postgresql+asyncpg://market:market@localhost:5434/market_assistant
       REDIS_URL: redis://localhost:6379/0
     steps:
