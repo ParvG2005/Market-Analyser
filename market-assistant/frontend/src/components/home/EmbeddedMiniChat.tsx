@@ -1,0 +1,42 @@
+import { useState } from "react";
+
+import { useChatStream } from "../../hooks/useChatStream";
+import { MessageBubble } from "../chat/MessageBubble";
+
+/** Compact desk chat that reuses the full chat stream + message bubbles. */
+export function EmbeddedMiniChat({ sessionId }: { sessionId: string }) {
+  const { messages, isStreaming, sendMessage } = useChatStream(sessionId);
+  const [text, setText] = useState("");
+
+  return (
+    <div className="embedded-mini-chat" data-testid="embedded-mini-chat">
+      <div className="mini-chat-log">
+        {messages.slice(-4).map((m, i) => (
+          <MessageBubble key={i} message={m} />
+        ))}
+      </div>
+      <form
+        className="chatbox"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const trimmed = text.trim();
+          if (trimmed) {
+            void sendMessage(trimmed);
+            setText("");
+          }
+        }}
+      >
+        <input
+          aria-label="Ask the assistant"
+          placeholder="Ask about the market…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          disabled={isStreaming}
+        />
+        <button type="submit" disabled={isStreaming}>
+          Ask
+        </button>
+      </form>
+    </div>
+  );
+}

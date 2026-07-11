@@ -1,12 +1,18 @@
 import { Badge } from "../components/common/Badge";
 import { Panel } from "../components/common/Panel";
 import { StatCard } from "../components/common/StatCard";
+import { EmbeddedMiniChat } from "../components/home/EmbeddedMiniChat";
+import { NewsPanel } from "../components/news/NewsPanel";
+import { useNews } from "../hooks/useNews";
 
 const VOL_HEAT = ["up", "up", "down", "up", "down", "down", "up", "up", "up"] as const;
+const HOME_CHAT_SESSION = "home-embedded";
 
 export function Home() {
+  const { data: news } = useNews();
+
   return (
-    <>
+    <div data-testid="home-dashboard">
       <h1 className="page-title">Home</h1>
       <p className="page-sub">Live crypto · delayed equities · updated 14:32:07 UTC</p>
 
@@ -111,9 +117,7 @@ export function Home() {
 
         <div className="col">
           <Panel title="News & Sentiment">
-            <div className="news-row"><span className="sent pos" /><div><div className="hl">ETF inflows hit 3-week high as BTC reclaims 67k</div><div className="meta">CoinDesk · 8m ago · <span className="up">+ bullish</span></div></div></div>
-            <div className="news-row"><span className="sent neg" /><div><div className="hl">Chipmakers slide on softer demand guidance</div><div className="meta">Reuters · 22m ago · <span className="down">− bearish</span></div></div></div>
-            <div className="news-row"><span className="sent neu" /><div><div className="hl">Fed minutes: officials split on timing of cuts</div><div className="meta">Bloomberg · 41m ago · neutral</div></div></div>
+            <NewsPanel items={news ?? []} />
           </Panel>
 
           <Panel title="Watchlist" tag="live">
@@ -125,12 +129,11 @@ export function Home() {
             </div>
           </Panel>
 
-          <Panel title="Ask the desk" tag="beta" bodyClassName="chatbox">
-            <input placeholder="Ask about the market…" aria-label="Ask about the market" />
-            <button type="button">Send</button>
+          <Panel title="Ask the desk" tag="beta">
+            <EmbeddedMiniChat sessionId={HOME_CHAT_SESSION} />
           </Panel>
         </div>
       </div>
-    </>
+    </div>
   );
 }
