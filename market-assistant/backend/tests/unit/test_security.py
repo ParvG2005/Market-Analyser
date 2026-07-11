@@ -211,3 +211,62 @@ def test_verify_token_returns_authenticated_user() -> None:
     user = verify_token(token, settings)
     assert str(user.id) == uid
     assert user.email == "trader@example.com"
+
+
+# --- effective_jwks_url derivation + precedence ---------------------------
+
+
+def test_effective_jwks_url_derived_from_supabase_url() -> None:
+    from app.core.config import Settings
+
+    settings = Settings(supabase_url="https://ref.supabase.co")
+    assert (
+        settings.effective_jwks_url
+        == "https://ref.supabase.co/auth/v1/.well-known/jwks.json"
+    )
+
+
+def test_effective_jwks_url_explicit_overrides_derived() -> None:
+    from app.core.config import Settings
+
+    settings = Settings(
+        supabase_url="https://ref.supabase.co",
+        supabase_jwks_url="https://explicit.example.com/jwks.json",
+    )
+    assert settings.effective_jwks_url == "https://explicit.example.com/jwks.json"
+
+
+def test_effective_jwks_url_empty_when_neither_set() -> None:
+    from app.core.config import Settings
+
+    assert Settings(jwt_secret=SECRET).effective_jwks_url == ""
+
+
+def test_verify_token_prefers_jwks_over_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When supabase_url is set (ES256 world), JWKS wins even if jwt_secret is
+    also present — a stale HS256 secret must never shadow asymmetric verification.
+    """
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    from app.core.config import Settings
+
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    public_key = private_key.public_key()
+    uid = str(uuid4())
+    token = jwt.encode(_base_claims(sub=uid), private_key, algorithm="ES256")
+
+    monkeypatch.setattr(
+        jwt.PyJWKClient,
+        "get_signing_key_from_jwt",
+        lambda self, tok: _FakeSigningKey(public_key),
+    )
+    security._jwks_clients.clear()
+
+    # Both a (stale) HS256 secret and a supabase_url are configured.
+    settings = Settings(
+        jwt_secret=SECRET, jwt_audience=AUD, supabase_url="https://ref.supabase.co"
+    )
+    user = verify_token(token, settings)
+    assert str(user.id) == uid
