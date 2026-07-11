@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.deps import get_redis, get_sessionmaker
 from app.ingest.backfill import backfill_gaps
 from app.models.instrument import Instrument
+from app.workers.backtest_worker import run_backtest_job
 from app.workers.news_worker import run_news_ingest
 
 # Rolling window the periodic sweep re-checks for gaps on each active instrument.
@@ -61,7 +62,7 @@ class WorkerSettings:
     """arq worker definition. Run with ``arq app.worker.WorkerSettings``."""
 
     redis_settings: RedisSettings = RedisSettings.from_dsn(get_settings().redis_url)
-    functions: list[Any] = [backfill_gaps]
+    functions: list[Any] = [backfill_gaps, run_backtest_job]
     cron_jobs: list[CronJob] = [
         cron(run_news_ingest, minute=set(range(0, 60, 15)), run_at_startup=False),
         cron(trigger_backfill_sweep, minute={7, 37}),
