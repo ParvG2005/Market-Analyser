@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -22,6 +22,19 @@ NSE_HOLIDAYS: set[date] = {
     date(2025, 10, 22),  # Diwali Balipratipada
     date(2025, 11, 5),   # Guru Nanak Jayanti
     date(2025, 12, 25),  # Christmas
+    # -- 2026 --
+    # Only confident FIXED-date holidays are listed below. The remaining
+    # VARIABLE/lunar-date 2026 NSE holidays (Holi, Mahashivratri,
+    # Eid-ul-Fitr, Ram Navami, Mahavir Jayanti, Buddha Purnima, Bakri Eid,
+    # Muharram, Ganesh Chaturthi, Dussehra, Diwali Laxmi Pujan/
+    # Balipratipada, Guru Nanak Jayanti) MUST be reconciled from the
+    # official NSE 2026 holiday circular before production use — do NOT
+    # guess those dates.
+    date(2026, 1, 26),   # Republic Day (Mon)
+    date(2026, 4, 3),    # Good Friday (Fri)
+    date(2026, 5, 1),    # Maharashtra Day (Fri)
+    date(2026, 10, 2),   # Gandhi Jayanti (Fri)
+    date(2026, 12, 25),  # Christmas (Fri)
 }
 
 
@@ -39,6 +52,8 @@ def session_window(day: date) -> tuple[datetime, datetime]:
 
 
 def is_in_session(dt: datetime) -> bool:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
     local = dt.astimezone(IST)
     if not is_trading_day(local.date()):
         return False

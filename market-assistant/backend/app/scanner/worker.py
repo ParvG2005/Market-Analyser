@@ -76,19 +76,21 @@ async def on_candle_close(
     db = ctx["db"]
     redis = ctx["redis"]
 
+    result = await db.execute(select(ScanRule).where(ScanRule.enabled.is_(True)))
+    enabled_rules = list(result.scalars().all())
+    if not enabled_rules:
+        return 0
+
     # Market-hours guard: equity instruments must never be evaluated on a candle
     # whose close falls outside the NSE session (stale/off-hours data). Crypto
-    # trades 24/7 and is unaffected; in-session equity passes through.
+    # trades 24/7 and is unaffected; in-session equity passes through. Runs
+    # after the enabled_rules early-return so a crypto/no-rules candle-close
+    # never pays for an unnecessary Instrument fetch.
     instrument = await db.get(Instrument, instrument_id)
     if instrument is not None and instrument.asset_class == "equity":
         bar_ts = datetime.fromisoformat(str(candle["ts"]).replace("Z", "+00:00"))
         if not is_in_session(bar_ts):
             return 0
-
-    result = await db.execute(select(ScanRule).where(ScanRule.enabled.is_(True)))
-    enabled_rules = list(result.scalars().all())
-    if not enabled_rules:
-        return 0
 
     # Warm-start async, then hand the sync cache a closure over the loaded rows.
     history = await load_recent_candles(db, instrument_id, tf, WARM_START_BARS)

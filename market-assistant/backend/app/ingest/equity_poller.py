@@ -9,15 +9,13 @@ supplied) fans each written candle out over Phase-3 pub/sub.
 
 from datetime import datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from app.core.config import get_settings
-from app.ingest.nse_calendar import is_in_session
+from app.ingest.nse_calendar import IST, is_in_session
 from app.ingest.universe_equity import ensure_equity_instruments
 from app.ingest.writer import upsert_candles
 from app.ingest.yfinance_adapter import fetch_candles
 
-IST = ZoneInfo("Asia/Kolkata")
 POLL_TF = "1m"
 
 

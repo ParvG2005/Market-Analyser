@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     NEWS_FEED_URLS: list[str] = []
     EQUITY_POLL_INTERVAL_MIN: int = 15
     EQUITY_DELAY_MINUTES: int = 15
-    NSE_TIMEZONE: str = "Asia/Kolkata"
 
 
 @lru_cache

@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.ingest.nse_calendar import is_in_session, is_trading_day, session_window
+from app.ingest.nse_calendar import NSE_HOLIDAYS, is_in_session, is_trading_day, session_window
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -42,3 +42,24 @@ def test_session_window_bounds() -> None:
 )
 def test_is_in_session(dt: datetime, expected: bool) -> None:
     assert is_in_session(dt) is expected
+
+
+def test_holiday_table_has_entry_for_current_year() -> None:
+    """Guard against holiday-blindness: fail loudly if NSE_HOLIDAYS has no
+    entries for the current calendar year, instead of silently mis-gating
+    the equity session (e.g. treating every day as a trading day)."""
+    current_year = date.today().year
+    assert any(d.year == current_year for d in NSE_HOLIDAYS), (
+        f"NSE_HOLIDAYS has no entries for {current_year}; the holiday table "
+        "is stale and must be updated from the official NSE circular."
+    )
+
+
+def test_is_in_session_naive_datetime_assumed_utc() -> None:
+    # A naive datetime must be treated as UTC, not system-local time.
+    # 2025-06-09 04:00 UTC == 09:30 IST, inside the trading session.
+    naive_utc = datetime(2025, 6, 9, 4, 0)
+    assert is_in_session(naive_utc) is True
+
+    aware_equivalent = datetime(2025, 6, 9, 4, 0, tzinfo=ZoneInfo("UTC"))
+    assert is_in_session(naive_utc) is is_in_session(aware_equivalent)
