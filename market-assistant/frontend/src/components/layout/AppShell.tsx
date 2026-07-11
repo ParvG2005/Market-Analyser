@@ -148,6 +148,7 @@ export function AppShell() {
           <button
             type="button"
             className="icon-btn"
+            data-testid="theme-toggle"
             aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
             aria-pressed={theme === "dark"}
             onClick={toggleTheme}
