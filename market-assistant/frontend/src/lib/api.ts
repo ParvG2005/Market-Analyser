@@ -1,6 +1,19 @@
+import type { CorrelationVM } from "../components/analytics/CorrelationMatrix";
+import type { SeasonalityVM } from "../components/analytics/SeasonalityHeatmap";
+import type { NewsItemVM } from "../components/news/NewsPanel";
 import { getAccessToken } from "./auth";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
+interface NewsItemApiShape {
+  id: number;
+  source: string | null;
+  title: string | null;
+  url: string | null;
+  published_at: string | null;
+  sentiment: number | null;
+  tickers: string[] | null;
+}
 
 /**
  * Bearer-authed transport wrapper around `fetch`. Every backend API call goes
@@ -148,4 +161,59 @@ export async function getSessionMessages(sessionId: string): Promise<ChatMessage
   return body
     .filter((m) => m.role !== "tool" && m.content)
     .map((m) => ({ role: m.role, content: m.content ?? "" }));
+}
+
+// --- Phase 13: dashboard news + analytics feeds ---
+
+export async function getNews(symbol?: string): Promise<NewsItemVM[]> {
+  const qs = symbol ? `?symbol=${encodeURIComponent(symbol)}` : "";
+  const res = await authedFetch(`${API_BASE}/api/news${qs}`);
+  if (!res.ok) throw new Error(`getNews failed: ${res.status}`);
+  const body: NewsItemApiShape[] = await res.json();
+  return body.map((n) => ({
+    id: n.id,
+    source: n.source,
+    title: n.title,
+    url: n.url,
+    published_at: n.published_at,
+    sentiment: n.sentiment,
+    tickers: n.tickers ?? [],
+  }));
+}
+
+export async function getCorrelation(
+  assetClass: "crypto" | "equity",
+  tf = "1h",
+  limit = 200,
+): Promise<CorrelationVM> {
+  const res = await authedFetch(
+    `${API_BASE}/api/analytics/correlation?asset_class=${assetClass}&tf=${tf}&limit=${limit}`,
+  );
+  if (!res.ok) throw new Error(`getCorrelation failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getSeasonality(
+  symbol: string,
+  tf: string,
+  bucket: "dow" | "month" | "hour",
+): Promise<SeasonalityVM> {
+  const res = await authedFetch(
+    `${API_BASE}/api/analytics/seasonality?symbol=${encodeURIComponent(symbol)}&tf=${tf}&bucket=${bucket}`,
+  );
+  if (!res.ok) throw new Error(`getSeasonality failed: ${res.status}`);
+  return res.json();
+}
+
+export interface BacktestDetailVM {
+  id: string;
+  status: string;
+  strategy?: string;
+  equity_curve: { ts: string; value: number }[] | null;
+}
+
+export async function getBacktest(id: string): Promise<BacktestDetailVM> {
+  const res = await authedFetch(`${API_BASE}/backtests/${id}`);
+  if (!res.ok) throw new Error(`getBacktest failed: ${res.status}`);
+  return res.json();
 }
