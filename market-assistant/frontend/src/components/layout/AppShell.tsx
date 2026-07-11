@@ -16,6 +16,7 @@ const NAV: NavEntry[] = [
   { to: "/", label: "Home", icon: "◧" },
   { to: "/charts", label: "Charts", icon: "◵" },
   { to: "/watchlist", label: "Watchlist", icon: "★" },
+  { to: "/universe", label: "Universe", icon: "◎" },
   { to: "/scanner", label: "Scanner", icon: "⊞" },
   { to: "/strategies", label: "Strategies", icon: "❏" },
   { to: "/trends", label: "Trends", icon: "↗" },

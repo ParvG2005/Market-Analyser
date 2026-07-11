@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.schemas.candles import CandleOut, Timeframe
+from app.api.schemas.candles import CandleOut, CandlesResponse, Timeframe
+from app.core.config import get_settings
 from app.core.deps import get_session
 from app.models.candle import CandleRow
 from app.models.instrument import Instrument
@@ -12,7 +13,7 @@ from app.models.instrument import Instrument
 router = APIRouter(tags=["candles"])
 
 
-@router.get("/candles", response_model=list[CandleOut])
+@router.get("/candles", response_model=CandlesResponse)
 async def get_candles(
     symbol: str,
     tf: Timeframe,
@@ -21,17 +22,17 @@ async def get_candles(
     limit: int = Query(default=1000, ge=1, le=5000),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
-) -> list[CandleOut]:
-    instrument_id = (
-        await session.execute(select(Instrument.id).where(Instrument.symbol == symbol))
+) -> CandlesResponse:
+    instrument = (
+        await session.execute(select(Instrument).where(Instrument.symbol == symbol))
     ).scalars().first()
-    if instrument_id is None:
-        return []
+    if instrument is None:
+        return CandlesResponse(candles=[], delayed=False, delay_minutes=0)
 
     stmt = (
         select(CandleRow)
         .where(
-            CandleRow.instrument_id == instrument_id,
+            CandleRow.instrument_id == instrument.id,
             CandleRow.tf == tf.value,
             CandleRow.ts >= from_,
             CandleRow.ts <= to,
@@ -41,4 +42,13 @@ async def get_candles(
         .limit(limit)
     )
     rows = (await session.execute(stmt)).scalars().all()
-    return [CandleOut.model_validate(row) for row in rows]
+
+    settings = get_settings()
+    is_delayed = instrument.asset_class == "equity"
+    delay_minutes = settings.EQUITY_DELAY_MINUTES if is_delayed else 0
+
+    return CandlesResponse(
+        candles=[CandleOut.model_validate(row) for row in rows],
+        delayed=is_delayed,
+        delay_minutes=delay_minutes,
+    )

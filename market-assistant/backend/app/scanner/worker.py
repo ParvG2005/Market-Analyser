@@ -22,6 +22,8 @@ from typing import Any, cast
 
 from sqlalchemy import select
 
+from app.ingest.nse_calendar import is_in_session
+from app.models.instrument import Instrument
 from app.models.scan_hit import ScanHit
 from app.models.scan_rule import ScanRule
 from app.scanner.cache import WARM_START_BARS, CandleLike, IndicatorCache, LoadHistory
@@ -78,6 +80,17 @@ async def on_candle_close(
     enabled_rules = list(result.scalars().all())
     if not enabled_rules:
         return 0
+
+    # Market-hours guard: equity instruments must never be evaluated on a candle
+    # whose close falls outside the NSE session (stale/off-hours data). Crypto
+    # trades 24/7 and is unaffected; in-session equity passes through. Runs
+    # after the enabled_rules early-return so a crypto/no-rules candle-close
+    # never pays for an unnecessary Instrument fetch.
+    instrument = await db.get(Instrument, instrument_id)
+    if instrument is not None and instrument.asset_class == "equity":
+        bar_ts = datetime.fromisoformat(str(candle["ts"]).replace("Z", "+00:00"))
+        if not is_in_session(bar_ts):
+            return 0
 
     # Warm-start async, then hand the sync cache a closure over the loaded rows.
     history = await load_recent_candles(db, instrument_id, tf, WARM_START_BARS)

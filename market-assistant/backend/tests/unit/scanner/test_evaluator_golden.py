@@ -1,20 +1,28 @@
 import numpy as np
+import pytest
 
 from app.scanner.dsl import parse_rule_definition
 from app.scanner.evaluator import compile_rule
 from app.scanner.indicators import rel_volume, rsi
 
 
-def _make_dip_series():
+def _make_dip_series(base=100.0):
     """40 flat bars, then a sharp 15-bar drop (RSI dives <30) with one volume spike bar."""
-    closes = [100.0] * 40 + list(np.linspace(100, 70, 15))
+    closes = [base] * 40 + list(np.linspace(base, base * 0.7, 15))
     volumes = [20.0] * 55
     volumes[50] = 200.0  # single rel-volume spike, expected trigger bar
     return closes, volumes
 
 
-def test_fires_exactly_at_expected_bar_never_adjacent():
-    closes, volumes = _make_dip_series()
+# (asset_class, base_price) -- crypto ~100, equity (NSE) ~2900 (INR). The
+# dip is scaled proportionally (30% drawdown) so RSI dives <30 at both
+# scales; proves the pure rule-evaluation path is asset-class-agnostic.
+ASSET_CLASS_CASES = [("crypto", 100.0), ("equity", 2900.0)]
+
+
+@pytest.mark.parametrize("asset_class,base_price", ASSET_CLASS_CASES)
+def test_fires_exactly_at_expected_bar_never_adjacent(asset_class, base_price):
+    closes, volumes = _make_dip_series(base=base_price)
     rsi_series = rsi(closes, period=14)
     relvol_series = rel_volume(volumes, period=20)
 

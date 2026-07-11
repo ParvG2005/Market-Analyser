@@ -27,10 +27,13 @@ async function installFakeFeed(page: import("@playwright/test").Page) {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/candles")) {
         return Promise.resolve(
-          new Response(JSON.stringify(seed), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
+          new Response(
+            JSON.stringify({ candles: seed, delayed: false, delay_minutes: 0 }),
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            },
+          ),
         );
       }
       return origFetch(input, init);

@@ -1,8 +1,14 @@
 import { heatColor } from "../../lib/heatColor";
 import type { WatchlistTileData } from "../../stores/watchlistStore";
+import { DelayBadge } from "../common/DelayBadge";
+
+interface WatchlistTileProps extends WatchlistTileData {
+  delayed?: boolean;
+  delayMinutes?: number;
+}
 
 /** Presentational live-price tile; background heat-mapped by daily % change. */
-export function WatchlistTile({ symbol, last, changePct }: WatchlistTileData) {
+export function WatchlistTile({ symbol, last, changePct, delayed, delayMinutes }: WatchlistTileProps) {
   const up = changePct >= 0;
   return (
     <div
@@ -12,6 +18,7 @@ export function WatchlistTile({ symbol, last, changePct }: WatchlistTileData) {
     >
       <div className="wl-tile-top">
         <span className="wl-sym">{symbol}</span>
+        <DelayBadge delayed={delayed ?? false} delayMinutes={delayMinutes ?? 0} />
         <span className={`wl-arrow ${up ? "up" : "down"}`} aria-hidden="true">
           {up ? "▲" : "▼"}
         </span>

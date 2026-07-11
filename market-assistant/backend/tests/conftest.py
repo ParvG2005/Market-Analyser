@@ -1,5 +1,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -340,6 +342,60 @@ async def replay_synthetic_candles(db_session, redis_client):
             await db_session.flush()
 
     return _replay
+
+
+_IST = ZoneInfo("Asia/Kolkata")
+# 2025-06-09 (Mon) 10:00 IST — mid-session on an NSE trading day.
+_IN_SESSION_NOW = datetime(2025, 6, 9, 10, 0, tzinfo=_IST)
+
+
+@pytest.fixture
+def in_session_time():
+    """Freeze ``app.ingest.equity_poller.datetime.now`` to an in-session NSE
+    timestamp so ``poll_equity_universe`` treats the market as open. Only the
+    ``datetime`` symbol in that module is patched; ``timedelta`` (imported
+    separately there) keeps working, matching the equity_poller integration
+    tests' approach."""
+    with patch("app.ingest.equity_poller.datetime") as mock_dt:
+        mock_dt.now.return_value = _IN_SESSION_NOW
+        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+        yield mock_dt
+
+
+@pytest.fixture
+async def seeded_reliance_15m_breakout_day(db_session):
+    """Seed a RELIANCE.NS equity instrument plus the Task 9
+    ``reliance_15m_breakout_day`` fixture bars (26 15m candles of one NSE
+    session) so the synchronous mini-backtest endpoint can run ORB on equity
+    candles. Committed (savepoint released) so the API's own session — bound to
+    the same shared connection via the ``client`` override — reads the rows.
+    Returns the seeded ``Instrument``."""
+    from tests.fixtures.candles import load_fixture_candles
+
+    instrument = Instrument(
+        symbol="RELIANCE.NS", asset_class="equity", exchange="NSE", active=True
+    )
+    db_session.add(instrument)
+    await db_session.flush()
+
+    df = load_fixture_candles("reliance_15m_breakout_day")
+    db_session.add_all(
+        [
+            CandleRow(
+                instrument_id=instrument.id,
+                tf="15m",
+                ts=ts.to_pydatetime(),
+                o=float(row.o),
+                h=float(row.h),
+                l=float(row.l),
+                c=float(row.c),
+                v=float(row.v),
+            )
+            for ts, row in df.iterrows()
+        ]
+    )
+    await db_session.commit()
+    return instrument
 
 
 @pytest.fixture

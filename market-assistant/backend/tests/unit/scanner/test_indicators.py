@@ -8,12 +8,12 @@ import pytest
 from app.scanner.indicators import adx, atr, bollinger, ema, gap_pct, rel_volume, rsi, sma, vwap
 
 
-def _synthetic_ohlcv(n=100, seed=42):
+def _synthetic_ohlcv(n=100, seed=42, base=100.0):
     rng = np.random.default_rng(seed)
-    closes = 100 + np.cumsum(rng.normal(0, 1, n))
-    highs = closes + rng.uniform(0, 1, n)
-    lows = closes - rng.uniform(0, 1, n)
-    opens = closes + rng.uniform(-0.5, 0.5, n)
+    closes = base + np.cumsum(rng.normal(0, base / 100.0, n))
+    highs = closes + rng.uniform(0, base / 100.0, n)
+    lows = closes - rng.uniform(0, base / 100.0, n)
+    opens = closes + rng.uniform(-base / 200.0, base / 200.0, n)
     volumes = rng.uniform(10, 100, n)
     # A DatetimeIndex (all within one session) is required by the installed
     # pandas-ta version's vwap() for session-anchored cumulative grouping;
@@ -25,24 +25,34 @@ def _synthetic_ohlcv(n=100, seed=42):
     )
 
 
-def test_sma_matches_pandas_ta():
-    df = _synthetic_ohlcv()
+# (asset_class, base_price) -- crypto uses a BTC/USDT-shaped ~100 scale
+# (matching the pre-existing fixture); equity uses a RELIANCE.NS-shaped
+# ~2900 (INR) scale. Proves the pure indicator math is asset-class-agnostic:
+# it must match pandas_ta at both price/volatility scales, not just one.
+ASSET_CLASS_CASES = [("crypto", 100.0), ("equity", 2900.0)]
+
+
+@pytest.mark.parametrize("asset_class,base_price", ASSET_CLASS_CASES)
+def test_sma_matches_pandas_ta(asset_class, base_price):
+    df = _synthetic_ohlcv(base=base_price)
     expected = ta.sma(df["close"], length=20)
     result = sma(df["close"].tolist(), period=20)
     for i in range(19, len(df)):
         assert result[i] == pytest.approx(expected.iloc[i], rel=1e-9)
 
 
-def test_ema_matches_pandas_ta():
-    df = _synthetic_ohlcv()
+@pytest.mark.parametrize("asset_class,base_price", ASSET_CLASS_CASES)
+def test_ema_matches_pandas_ta(asset_class, base_price):
+    df = _synthetic_ohlcv(base=base_price)
     expected = ta.ema(df["close"], length=12)
     result = ema(df["close"].tolist(), period=12)
     for i in range(11, len(df)):
         assert result[i] == pytest.approx(expected.iloc[i], rel=1e-6)
 
 
-def test_rsi_matches_pandas_ta():
-    df = _synthetic_ohlcv()
+@pytest.mark.parametrize("asset_class,base_price", ASSET_CLASS_CASES)
+def test_rsi_matches_pandas_ta(asset_class, base_price):
+    df = _synthetic_ohlcv(base=base_price)
     expected = ta.rsi(df["close"], length=14)
     result = rsi(df["close"].tolist(), period=14)
     for i in range(27, len(df)):  # RSI needs warmup for Wilder smoothing to converge

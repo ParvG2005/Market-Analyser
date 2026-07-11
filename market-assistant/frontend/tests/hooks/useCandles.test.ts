@@ -27,10 +27,14 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
-      json: async () => [
-        { ts: "2024-01-01T00:00:00Z", o: 1, h: 2, l: 0.5, c: 1.5, v: 10 },
-        { ts: "2024-01-01T00:01:00Z", o: 1.5, h: 2.5, l: 1, c: 2, v: 12 },
-      ],
+      json: async () => ({
+        candles: [
+          { ts: "2024-01-01T00:00:00Z", o: 1, h: 2, l: 0.5, c: 1.5, v: 10 },
+          { ts: "2024-01-01T00:01:00Z", o: 1.5, h: 2.5, l: 1, c: 2, v: 12 },
+        ],
+        delayed: false,
+        delay_minutes: 0,
+      }),
     }),
   );
 });

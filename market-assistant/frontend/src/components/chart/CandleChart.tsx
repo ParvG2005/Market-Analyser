@@ -11,17 +11,20 @@ import type { Candle } from "../../hooks/useCandles";
 import { bollinger, ema, vwap } from "../../lib/indicators";
 import { chartPalette } from "../../lib/chartTheme";
 import { useThemeStore } from "../../stores/themeStore";
+import { DelayBadge } from "../common/DelayBadge";
 import type { OverlayToggles } from "./IndicatorOverlays";
 
 export interface CandleChartProps {
   candles: Candle[];
   overlays: OverlayToggles;
+  delayed?: boolean;
+  delayMinutes?: number;
 }
 
 const barTime = (ts: string) =>
   Math.floor(new Date(ts).getTime() / 1000) as UTCTimestamp;
 
-export function CandleChart({ candles, overlays }: CandleChartProps) {
+export function CandleChart({ candles, overlays, delayed, delayMinutes }: CandleChartProps) {
   const theme = useThemeStore((s) => s.theme);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -157,5 +160,12 @@ export function CandleChart({ candles, overlays }: CandleChartProps) {
       candles.at(-1)?.c;
   }, [candles, overlays]);
 
-  return <div ref={containerRef} data-testid="candle-chart" className="candle-chart" />;
+  return (
+    <div className="candle-chart-wrap">
+      <div className="candle-chart-head">
+        <DelayBadge delayed={delayed ?? false} delayMinutes={delayMinutes ?? 0} />
+      </div>
+      <div ref={containerRef} data-testid="candle-chart" className="candle-chart" />
+    </div>
+  );
 }

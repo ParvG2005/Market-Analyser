@@ -21,21 +21,28 @@ const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
  */
 export function useCandles(symbol: string, tf: string, from: string, to: string) {
   const [candles, setCandles] = useState<Candle[]>([]);
+  const [delayed, setDelayed] = useState(false);
+  const [delayMinutes, setDelayMinutes] = useState(0);
   const candlesRef = useRef<Candle[]>([]);
 
   useEffect(() => {
     candlesRef.current = [];
     setCandles([]);
+    setDelayed(false);
+    setDelayMinutes(0);
     if (typeof fetch !== "function") return;
 
     let cancelled = false;
     const params = new URLSearchParams({ symbol, tf, from, to });
     fetch(`${API_BASE}/candles?${params.toString()}`)
       .then((res) => res.json())
-      .then((history: Candle[]) => {
+      .then((body: { candles: Candle[]; delayed?: boolean; delay_minutes?: number }) => {
         if (cancelled) return;
+        const history = body.candles;
         candlesRef.current = history;
         setCandles(history);
+        setDelayed(body.delayed ?? false);
+        setDelayMinutes(body.delay_minutes ?? 0);
       })
       .catch(() => {
         /* offline / backend down — keep the empty series, WS may still fill it */
@@ -69,5 +76,5 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
     }
   }, [status, symbol, tf, send]);
 
-  return { candles, status };
+  return { candles, status, delayed, delayMinutes };
 }
