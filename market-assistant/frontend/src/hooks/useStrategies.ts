@@ -126,7 +126,9 @@ export function useStrategies() {
 
   return {
     strategies: strategiesQuery.data ?? [],
-    configs: configsQuery.data ?? [],
+    // Guard the shape: the page does `configs.filter(...)`, so a non-array
+    // payload must degrade to [] rather than throw and blank the whole page.
+    configs: Array.isArray(configsQuery.data) ? configsQuery.data : [],
     isLoading: strategiesQuery.isLoading,
     isError: strategiesQuery.isError,
     upsertStrategyConfig,
