@@ -195,6 +195,14 @@ async def redis_client():
     if keys:
         await client.delete(*keys)
 
+    # Same hazard for the signal worker's dedup keyspace: a stale
+    # signal_dedup:{strategy}:{instrument_id}:{tf}:{bar_ts}:{direction} key from a
+    # previous run (fresh instrument_id + fixed fixture bar ts) would wrongly
+    # suppress the signal under test. Clear only this keyspace (never flushdb).
+    signal_keys = [k async for k in client.scan_iter(match="signal_dedup:*")]
+    if signal_keys:
+        await client.delete(*signal_keys)
+
     yield client
 
 

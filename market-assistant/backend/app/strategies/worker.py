@@ -25,6 +25,7 @@ from app.core.deps import get_redis, get_sessionmaker
 from app.models.instrument import Instrument
 from app.models.signal import Signal
 from app.models.strategy_config import StrategyConfig
+from app.scanner.dedup import DEDUP_TTL_SECONDS
 from app.scanner.history import load_recent_candles
 from app.strategies import (  # noqa: F401  (imported for registry side effects)
     bb_rsi_revert,
@@ -79,6 +80,11 @@ async def on_candle_close(instrument_id: int, tf: str) -> None:
             return
 
         rows = await load_recent_candles(session, instrument_id, tf, limit=_HISTORY_BARS)
+        # Empty history (enabled config but no stored candles yet): building the
+        # DataFrame would produce a column-less frame and adx_allows(df["h"]) would
+        # KeyError, so bail out before touching the DataFrame.
+        if not rows:
+            return
         df = pd.DataFrame(
             [
                 {
@@ -94,6 +100,11 @@ async def on_candle_close(instrument_id: int, tf: str) -> None:
         )
 
         redis = get_redis()
+        channel = f"signals:{instrument.symbol}:{tf}"
+        # Collect (channel, payload_json) and publish only AFTER the DB commit:
+        # publishing inside the loop would let subscribers observe a signal whose
+        # row never persisted if the commit later failed.
+        pending_publishes: list[tuple[str, str]] = []
 
         for cfg in configs:
             try:
@@ -112,6 +123,21 @@ async def on_candle_close(instrument_id: int, tf: str) -> None:
                 py_ts: datetime = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
                 if py_ts.tzinfo is None:
                     py_ts = py_ts.replace(tzinfo=UTC)
+                bar_ts_iso = py_ts.isoformat()
+
+                # Idempotency: on_candle_close re-runs generate_signals over the
+                # whole rolling window each close, so the same historical breakout
+                # would re-emit as the window slides. Claim a per-bar dedup key;
+                # a failed claim means we already emitted this signal -> skip.
+                # Claim-before-commit is the accepted Phase-4 pattern (at-most-once
+                # if the commit later fails).
+                dedup_key = (
+                    f"signal_dedup:{cfg.strategy}:{instrument_id}:{tf}:"
+                    f"{bar_ts_iso}:{candidate.direction}"
+                )
+                claimed = await redis.set(dedup_key, "1", nx=True, ex=DEDUP_TTL_SECONDS)
+                if not claimed:
+                    continue
 
                 meta = _json_safe(candidate.meta)
                 signal = Signal(
@@ -133,7 +159,7 @@ async def on_candle_close(instrument_id: int, tf: str) -> None:
                     "instrument_id": instrument_id,
                     "strategy": cfg.strategy,
                     "direction": candidate.direction,
-                    "ts": py_ts.isoformat(),
+                    "ts": bar_ts_iso,
                     "confidence": _json_safe(candidate.confidence),
                     "ref_entry": _json_safe(candidate.ref_entry),
                     "ref_sl": _json_safe(candidate.ref_sl),
@@ -141,11 +167,12 @@ async def on_candle_close(instrument_id: int, tf: str) -> None:
                     "backtest_ref": None,
                     "meta": meta,
                 }
-                await redis.publish(
-                    f"signals:{instrument.symbol}:{tf}", json.dumps(payload)
-                )
+                pending_publishes.append((channel, json.dumps(payload)))
 
         await session.commit()
+
+        for chan, payload_json in pending_publishes:
+            await redis.publish(chan, payload_json)
 
 
 async def on_candle_close_job(ctx: dict[str, Any], instrument_id: int, tf: str) -> None:

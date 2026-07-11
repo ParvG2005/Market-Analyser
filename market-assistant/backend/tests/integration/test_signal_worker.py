@@ -81,6 +81,47 @@ async def test_enabled_config_produces_signal_row_and_ws_publish(
 
 
 @pytest.mark.asyncio
+async def test_repeated_candle_close_is_idempotent(
+    db_session, redis_client, fixture_orb_breakout_candles
+):
+    instrument = Instrument(symbol="BTC/USDT", asset_class="crypto", exchange="binance")
+    db_session.add(instrument)
+    await db_session.flush()
+    db_session.add(
+        StrategyConfig(
+            user_id="00000000-0000-0000-0000-000000000001",
+            strategy="orb",
+            instrument_id=instrument.id,
+            tf="15m",
+            params={"or_bars": 4, "rr": 2.0, "min_rel_volume": 2.0},
+            enabled=True,
+        )
+    )
+    await db_session.commit()
+
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe("signals:BTC/USDT:15m")
+    try:
+        # Two closes over the same rolling window: the dedup guard must make the
+        # second call a full no-op (0 new rows, 0 new publishes).
+        await on_candle_close(instrument_id=instrument.id, tf="15m")
+        await on_candle_close(instrument_id=instrument.id, tf="15m")
+
+        rows = (
+            await db_session.execute(
+                Signal.__table__.select().where(Signal.instrument_id == instrument.id)
+            )
+        ).fetchall()
+        assert len(rows) == 1
+
+        messages = await _poll_one_message(pubsub)
+        assert len(messages) == 1
+    finally:
+        await pubsub.unsubscribe("signals:BTC/USDT:15m")
+        await pubsub.aclose()
+
+
+@pytest.mark.asyncio
 async def test_disabled_config_produces_nothing(
     db_session, redis_client, fixture_orb_breakout_candles
 ):
