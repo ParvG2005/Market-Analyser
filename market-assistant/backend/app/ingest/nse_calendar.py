@@ -23,17 +23,27 @@ NSE_HOLIDAYS: set[date] = {
     date(2025, 11, 5),   # Guru Nanak Jayanti
     date(2025, 12, 25),  # Christmas
     # -- 2026 --
-    # Only confident FIXED-date holidays are listed below. The remaining
-    # VARIABLE/lunar-date 2026 NSE holidays (Holi, Mahashivratri,
-    # Eid-ul-Fitr, Ram Navami, Mahavir Jayanti, Buddha Purnima, Bakri Eid,
-    # Muharram, Ganesh Chaturthi, Dussehra, Diwali Laxmi Pujan/
-    # Balipratipada, Guru Nanak Jayanti) MUST be reconciled from the
-    # official NSE 2026 holiday circular before production use — do NOT
-    # guess those dates.
+    # Full weekday trading-holiday list reconciled from the official NSE 2026
+    # holiday circular (cross-checked against Zerodha + ClearTax published
+    # calendars, which agree exactly). Holidays that fall on weekends
+    # (Mahashivratri 15-Feb, Eid-ul-Fitr 21-Mar, Independence Day 15-Aug,
+    # Diwali Laxmi Pujan 08-Nov) are already non-trading via the weekend
+    # guard and are intentionally NOT listed here.
+    date(2026, 1, 15),   # Municipal Corporation Elections, Maharashtra (Thu)
     date(2026, 1, 26),   # Republic Day (Mon)
+    date(2026, 3, 3),    # Holi (Tue)
+    date(2026, 3, 26),   # Shri Ram Navami (Thu)
+    date(2026, 3, 31),   # Shri Mahavir Jayanti (Tue)
     date(2026, 4, 3),    # Good Friday (Fri)
+    date(2026, 4, 14),   # Dr. Baba Saheb Ambedkar Jayanti (Tue)
     date(2026, 5, 1),    # Maharashtra Day (Fri)
-    date(2026, 10, 2),   # Gandhi Jayanti (Fri)
+    date(2026, 5, 28),   # Bakri Eid (Thu)
+    date(2026, 6, 26),   # Muharram (Fri)
+    date(2026, 9, 14),   # Ganesh Chaturthi (Mon)
+    date(2026, 10, 2),   # Mahatma Gandhi Jayanti (Fri)
+    date(2026, 10, 20),  # Dussehra (Tue)
+    date(2026, 11, 10),  # Diwali Balipratipada (Tue)
+    date(2026, 11, 24),  # Prakash Gurpurb Sri Guru Nanak Dev (Tue)
     date(2026, 12, 25),  # Christmas (Fri)
 }
 
