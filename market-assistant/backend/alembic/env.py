@@ -44,8 +44,22 @@ def do_run_migrations(connection) -> None:
     db_schema = get_settings().db_schema
     non_public_schema = db_schema if db_schema and db_schema != "public" else None
     if non_public_schema:
+        # Commit the schema DDL + search_path OUTSIDE alembic's migration
+        # transaction. If these merely ran in the default (autobegin)
+        # transaction, the outer transaction opened by
+        # `run_migrations_online()`'s `engine.connect()` block is never
+        # committed and SQLAlchemy rolls it back on block exit -> the
+        # schema/tables/alembic_version silently vanish while
+        # command.upgrade() still reports success. An explicit commit() makes
+        # the CREATE SCHEMA durable and independent of the migration
+        # transaction; SET search_path is a session-level setting that then
+        # persists on this connection for the migrations below.
+        # (Note: `with connection.execution_options(...)` cannot be used here —
+        # Connection.execution_options() returns the same Connection, whose
+        # context-manager __exit__ CLOSES the connection.)
         connection.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{non_public_schema}"')
         connection.exec_driver_sql(f'SET search_path TO "{non_public_schema}", public')
+        connection.commit()
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
