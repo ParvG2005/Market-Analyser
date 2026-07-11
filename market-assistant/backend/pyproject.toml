@@ -35,6 +35,7 @@ dev = [
   "pandas>=2.2",
   "numpy>=1.26",
   "pandas-ta>=0.3.14b0",
+  "fakeredis>=2.20",
 ]
 
 [build-system]
