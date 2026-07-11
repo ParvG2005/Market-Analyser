@@ -22,6 +22,8 @@ from typing import Any, cast
 
 from sqlalchemy import select
 
+from app.ingest.nse_calendar import is_in_session
+from app.models.instrument import Instrument
 from app.models.scan_hit import ScanHit
 from app.models.scan_rule import ScanRule
 from app.scanner.cache import WARM_START_BARS, CandleLike, IndicatorCache, LoadHistory
@@ -73,6 +75,15 @@ async def on_candle_close(
 ) -> int:
     db = ctx["db"]
     redis = ctx["redis"]
+
+    # Market-hours guard: equity instruments must never be evaluated on a candle
+    # whose close falls outside the NSE session (stale/off-hours data). Crypto
+    # trades 24/7 and is unaffected; in-session equity passes through.
+    instrument = await db.get(Instrument, instrument_id)
+    if instrument is not None and instrument.asset_class == "equity":
+        bar_ts = datetime.fromisoformat(str(candle["ts"]).replace("Z", "+00:00"))
+        if not is_in_session(bar_ts):
+            return 0
 
     result = await db.execute(select(ScanRule).where(ScanRule.enabled.is_(True)))
     enabled_rules = list(result.scalars().all())
