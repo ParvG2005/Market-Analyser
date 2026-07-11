@@ -1,5 +1,6 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -15,24 +16,50 @@ config = context.config
 target_metadata = Base.metadata
 
 
+def _engine_kwargs_for_schema(db_schema: str) -> dict[str, Any]:
+    # Mirrors app.core.deps.get_engine: "public" => no connect_args, byte-for-
+    # byte unchanged behavior; any other schema sets the asyncpg search_path.
+    kwargs: dict[str, Any] = {}
+    if db_schema and db_schema != "public":
+        kwargs["connect_args"] = {
+            "server_settings": {"search_path": f"{db_schema},public"}
+        }
+    return kwargs
+
+
 def run_migrations_offline() -> None:
+    db_schema = get_settings().db_schema
+    non_public_schema = db_schema if db_schema and db_schema != "public" else None
     context.configure(
         url=get_settings().database_url,
         target_metadata=target_metadata,
         literal_binds=True,
+        version_table_schema=non_public_schema,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    db_schema = get_settings().db_schema
+    non_public_schema = db_schema if db_schema and db_schema != "public" else None
+    if non_public_schema:
+        connection.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{non_public_schema}"')
+        connection.exec_driver_sql(f'SET search_path TO "{non_public_schema}", public')
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table_schema=non_public_schema,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 async def run_migrations_online() -> None:
-    engine = create_async_engine(get_settings().database_url)
+    db_schema = get_settings().db_schema
+    engine = create_async_engine(
+        get_settings().database_url, **_engine_kwargs_for_schema(db_schema)
+    )
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await engine.dispose()

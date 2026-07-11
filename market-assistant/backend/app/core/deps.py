@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
 from functools import lru_cache
-from typing import cast
+from typing import Any, cast
 
 import redis.asyncio as redis
 from arq import create_pool
@@ -17,7 +17,13 @@ from app.core.config import get_settings
 
 @lru_cache
 def get_engine() -> AsyncEngine:
-    return create_async_engine(get_settings().database_url, pool_pre_ping=True)
+    settings = get_settings()
+    kwargs: dict[str, Any] = {"pool_pre_ping": True}
+    if settings.db_schema and settings.db_schema != "public":
+        kwargs["connect_args"] = {
+            "server_settings": {"search_path": f"{settings.db_schema},public"}
+        }
+    return create_async_engine(settings.database_url, **kwargs)
 
 
 def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
