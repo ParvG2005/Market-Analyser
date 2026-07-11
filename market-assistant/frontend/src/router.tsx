@@ -2,6 +2,7 @@ import { createBrowserRouter, createMemoryRouter } from "react-router-dom";
 
 import { AppShell } from "./components/layout/AppShell";
 import { Analytics } from "./pages/Analytics";
+import { BacktestResults } from "./pages/BacktestResults";
 import { ChartsPage } from "./pages/Charts";
 import { Chat } from "./pages/Chat";
 import { Home } from "./pages/Home";
@@ -23,6 +24,7 @@ const routes = [
       { path: "/strategies", element: <Strategies /> },
       { path: "/trends", element: <Trends /> },
       { path: "/analytics", element: <Analytics /> },
+      { path: "/backtests/:id", element: <BacktestResults /> },
       { path: "/ml", element: <ML /> },
       { path: "/chat", element: <Chat /> },
       { path: "/settings", element: <Settings /> },
