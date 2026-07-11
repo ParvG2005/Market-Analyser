@@ -87,9 +87,28 @@ async def create_strategy_config(
     session: AsyncSession = Depends(get_session),
     user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> StrategyConfig:
+    # Upsert on the (user, strategy, instrument, tf) scope so the enable toggle
+    # flips the existing row instead of inserting a duplicate: a second POST
+    # with enabled=False otherwise left the original enabled=True row in place
+    # and the worker kept evaluating a "disabled" strategy.
     _require_strategy(body.strategy)
-    cfg = StrategyConfig(user_id=user_id, **body.model_dump())
-    session.add(cfg)
+    existing = (
+        await session.execute(
+            select(StrategyConfig).where(
+                StrategyConfig.user_id == user_id,
+                StrategyConfig.strategy == body.strategy,
+                StrategyConfig.instrument_id == body.instrument_id,
+                StrategyConfig.tf == body.tf,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        existing.params = body.params
+        existing.enabled = body.enabled
+        cfg = existing
+    else:
+        cfg = StrategyConfig(user_id=user_id, **body.model_dump())
+        session.add(cfg)
     await session.commit()
     await session.refresh(cfg)
     return cfg

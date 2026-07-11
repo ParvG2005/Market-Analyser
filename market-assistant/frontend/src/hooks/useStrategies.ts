@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -48,6 +48,12 @@ export interface StrategyConfigInput {
   enabled: boolean;
 }
 
+/** A saved config from `GET /api/strategy-configs`. */
+export interface StrategyConfig extends StrategyConfigInput {
+  id: number;
+  user_id: string;
+}
+
 export interface MiniBacktestInput {
   name: string;
   instrument_id: number;
@@ -63,6 +69,15 @@ async function fetchStrategies(): Promise<StrategyMeta[]> {
   return res.json();
 }
 
+async function fetchStrategyConfigs(): Promise<StrategyConfig[]> {
+  const res = await fetch(`${API_BASE}/api/strategy-configs`);
+  if (!res.ok) throw new Error(`Failed to load strategy configs (${res.status})`);
+  return res.json();
+}
+
+/** Upsert a config. The backend keys on (user, strategy, instrument, tf), so a
+ * repeat POST (e.g. toggling Off) flips the existing row instead of adding a
+ * duplicate that would leave the strategy still enabled for the worker. */
 async function postStrategyConfig(input: StrategyConfigInput): Promise<unknown> {
   const res = await fetch(`${API_BASE}/api/strategy-configs`, {
     method: "POST",
@@ -91,16 +106,27 @@ export async function runMiniBacktest({
 
 /** TanStack Query wrapper over the strategies API. */
 export function useStrategies() {
+  const queryClient = useQueryClient();
   const strategiesQuery = useQuery({
     queryKey: ["strategies"],
     queryFn: fetchStrategies,
   });
+  const configsQuery = useQuery({
+    queryKey: ["strategy-configs"],
+    queryFn: fetchStrategyConfigs,
+  });
 
-  const upsertStrategyConfig = useMutation({ mutationFn: postStrategyConfig });
+  const upsertStrategyConfig = useMutation({
+    mutationFn: postStrategyConfig,
+    // Refetch persisted configs so every card reflects the saved truth (an Off
+    // toggle actually reads Off) rather than trusting the optimistic flip.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["strategy-configs"] }),
+  });
   const miniBacktest = useMutation({ mutationFn: runMiniBacktest });
 
   return {
     strategies: strategiesQuery.data ?? [],
+    configs: configsQuery.data ?? [],
     isLoading: strategiesQuery.isLoading,
     isError: strategiesQuery.isError,
     upsertStrategyConfig,

@@ -45,6 +45,28 @@ async def test_enable_strategy_config_round_trip(client, seeded_instrument):
     assert any(c["id"] == cfg_id and c["enabled"] for c in resp2.json())
 
 
+async def test_toggle_off_upserts_not_duplicates(client, db_session, seeded_instrument):
+    # Enabling then disabling the same (strategy, instrument, tf) must leave a
+    # SINGLE config row flipped to enabled=False -- not a second enabled=False
+    # row alongside a still-enabled one that the worker would keep evaluating.
+    payload = {
+        "strategy": "orb",
+        "instrument_id": seeded_instrument.id,
+        "tf": "15m",
+        "params": {"or_bars": 4, "rr": 2.0, "min_rel_volume": 2.0},
+        "enabled": True,
+    }
+    on = await client.post("/api/strategy-configs", json=payload)
+    assert on.status_code == 201
+    off = await client.post("/api/strategy-configs", json={**payload, "enabled": False})
+    assert off.status_code in (200, 201)
+
+    configs = (await client.get("/api/strategy-configs")).json()
+    orb_configs = [c for c in configs if c["strategy"] == "orb"]
+    assert len(orb_configs) == 1
+    assert orb_configs[0]["enabled"] is False
+
+
 async def test_create_strategy_config_unknown_strategy_is_422(client, seeded_instrument):
     resp = await client.post(
         "/api/strategy-configs",

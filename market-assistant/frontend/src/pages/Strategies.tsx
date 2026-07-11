@@ -23,9 +23,17 @@ interface CardState {
 }
 
 export function Strategies() {
-  const { strategies, isLoading, isError, upsertStrategyConfig } = useStrategies();
+  const { strategies, configs, isLoading, isError, upsertStrategyConfig } = useStrategies();
   const [cards, setCards] = useState<Record<string, CardState>>({});
   const signals = useSignals(DEFAULT_INSTRUMENT_LABEL, DEFAULT_TF, DEFAULT_INSTRUMENT_ID);
+
+  // Persisted enabled state for the active scope, keyed by strategy name, so a
+  // reload (or an Off toggle) shows each card's true saved state.
+  const enabledByStrategy = new Map(
+    configs
+      .filter((c) => c.instrument_id === DEFAULT_INSTRUMENT_ID && c.tf === DEFAULT_TF)
+      .map((c) => [c.strategy, c.enabled]),
+  );
 
   const patch = (name: string, next: CardState) =>
     setCards((prev) => ({ ...prev, [name]: { ...prev[name], ...next } }));
@@ -86,6 +94,7 @@ export function Strategies() {
               <PresetCard
                 key={preset.name}
                 preset={preset}
+                enabled={enabledByStrategy.get(preset.name) ?? false}
                 result={state.result}
                 pending={state.pending}
                 error={state.error}
