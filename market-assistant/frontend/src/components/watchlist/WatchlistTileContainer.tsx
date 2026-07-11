@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
+import { buildWsUrl } from "../../lib/api";
 import type { Candle } from "../../hooks/useCandles";
+import { useAccessToken } from "../../hooks/useAccessToken";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { WatchlistTile } from "./WatchlistTile";
 
@@ -22,7 +24,9 @@ export function WatchlistTileContainer({ symbol }: { symbol: string }) {
     setLast(candle.c);
   };
 
-  const { status, send } = useWebSocket(`${WS_BASE}/ws/candles`, { onMessage });
+  const token = useAccessToken();
+  const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/candles`, token) : "";
+  const { status, send } = useWebSocket(wsUrl, { onMessage });
 
   useEffect(() => {
     if (status === "open") send({ subscribe: `candles:${symbol}:1m` });

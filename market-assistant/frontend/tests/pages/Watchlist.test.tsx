@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 
+vi.mock("../../src/lib/auth", () => ({
+  getAccessToken: vi.fn().mockResolvedValue("test-token"),
+}));
+
 import { WatchlistPage } from "../../src/pages/Watchlist";
 
 class FakeWebSocket {
@@ -31,6 +35,7 @@ describe("WatchlistPage", () => {
     render(<WatchlistPage />);
     expect(screen.getByTestId("tile-BTC/USDT-loading")).toBeInTheDocument();
 
+    await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
     const socket = FakeWebSocket.instances[0];
     act(() => socket.triggerOpen());
     act(() =>
