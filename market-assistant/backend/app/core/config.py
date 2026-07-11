@@ -65,6 +65,21 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
 
+    @property
+    def effective_jwks_url(self) -> str:
+        """JWKS endpoint to verify Supabase tokens against.
+
+        Supabase now signs user tokens with asymmetric keys (ES256), so JWKS
+        is the correct verification path. Prefer an explicit ``supabase_jwks_url``;
+        otherwise derive it from ``supabase_url``. Empty only when neither is set
+        (local dev / tests fall back to the HS256 ``jwt_secret``).
+        """
+        if self.supabase_jwks_url:
+            return self.supabase_jwks_url
+        if self.supabase_url:
+            return f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        return ""
+
     @model_validator(mode="after")
     def _fail_fast_in_prod(self) -> "Settings":
         """Fail-fast config guard (Phase 12 Task 1).
@@ -79,8 +94,10 @@ class Settings(BaseSettings):
         errors: list[str] = []
         if "localhost" in self.database_url or "127.0.0.1" in self.database_url:
             errors.append("database_url points at localhost — set the managed Postgres URL")
-        if not self.jwt_secret and not self.supabase_jwks_url:
-            errors.append("jwt_secret (or supabase_jwks_url) is required for auth")
+        if not self.jwt_secret and not self.effective_jwks_url:
+            errors.append(
+                "jwt_secret (or supabase_jwks_url / supabase_url) is required for auth"
+            )
         key_field = _PROVIDER_KEY_FIELD.get(self.LLM_PROVIDER.lower())
         if key_field is None:
             errors.append(f"LLM_PROVIDER {self.LLM_PROVIDER!r} is not a known provider")

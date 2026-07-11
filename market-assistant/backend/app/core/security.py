@@ -83,6 +83,6 @@ def verify_token(token: str, settings: Settings) -> AuthenticatedUser:
         secret=settings.jwt_secret,
         audience=settings.jwt_audience,
         issuer=settings.jwt_issuer,
-        jwks_url=settings.supabase_jwks_url,
+        jwks_url=settings.effective_jwks_url,
     )
     return AuthenticatedUser(id=payload.sub, email=payload.email)
