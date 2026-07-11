@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.alert_subscriptions import router as alert_subscriptions_router
+from app.api.analytics import router as analytics_router
 from app.api.backtests import router as backtests_router
 from app.api.candles import router as candles_router
 from app.api.chat import router as chat_router
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(ml_router)
     app.include_router(chat_router)
     app.include_router(news_router)
+    app.include_router(analytics_router)
     # Test-only replay route; mounted solely under ENV=test, never in prod.
     if get_settings().env == "test":
         from app.api.test_routes import router as test_router
