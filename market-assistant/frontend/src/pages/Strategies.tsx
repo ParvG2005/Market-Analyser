@@ -2,6 +2,8 @@ import { useState } from "react";
 
 import { EmptyState } from "../components/common/EmptyState";
 import { PresetCard } from "../components/strategies/PresetCard";
+import { SignalFeedCard } from "../components/strategies/SignalFeedCard";
+import { useSignals } from "../hooks/useSignals";
 import {
   runMiniBacktest,
   useStrategies,
@@ -23,6 +25,7 @@ interface CardState {
 export function Strategies() {
   const { strategies, isLoading, isError, upsertStrategyConfig } = useStrategies();
   const [cards, setCards] = useState<Record<string, CardState>>({});
+  const signals = useSignals(DEFAULT_INSTRUMENT_LABEL, DEFAULT_TF, DEFAULT_INSTRUMENT_ID);
 
   const patch = (name: string, next: CardState) =>
     setCards((prev) => ({ ...prev, [name]: { ...prev[name], ...next } }));
@@ -100,6 +103,19 @@ export function Strategies() {
             );
           })}
         </div>
+      )}
+
+      {signals.length > 0 && (
+        <section className="signal-feed" aria-label="Signal feed">
+          <h2 className="sf-title">Signal feed</h2>
+          {signals.map((s) => (
+            <SignalFeedCard
+              key={s.id}
+              signal={s}
+              backtestStats={cards[s.strategy]?.result?.stats ?? null}
+            />
+          ))}
+        </section>
       )}
     </>
   );
