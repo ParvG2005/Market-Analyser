@@ -64,7 +64,7 @@ def test_atr_matches_pandas_ta():
     expected = ta.atr(df["high"], df["low"], df["close"], length=14)
     result = atr(df["high"].tolist(), df["low"].tolist(), df["close"].tolist(), period=14)
     for i in range(20, len(df)):
-        assert result[i] == pytest.approx(expected[i], rel=1e-3)
+        assert result[i] == pytest.approx(expected.iloc[i], rel=1e-3)
 
 
 def test_adx_matches_pandas_ta():
@@ -72,8 +72,8 @@ def test_adx_matches_pandas_ta():
     expected = ta.adx(df["high"], df["low"], df["close"], length=14)["ADX_14"]
     result = adx(df["high"].tolist(), df["low"].tolist(), df["close"].tolist(), period=14)
     for i in range(40, len(df)):
-        if not math.isnan(expected[i]):
-            assert result[i] == pytest.approx(expected[i], rel=1e-2)
+        if not math.isnan(expected.iloc[i]):
+            assert result[i] == pytest.approx(expected.iloc[i], rel=1e-2)
 
 
 def test_rel_volume_is_ratio_to_rolling_average():
@@ -95,6 +95,6 @@ def test_bollinger_matches_pandas_ta():
     expected = ta.bbands(df["close"], length=20, std=2.0)
     mid, upper, lower = bollinger(df["close"].tolist(), period=20, std_mult=2.0)
     for i in range(19, len(df)):
-        assert mid[i] == pytest.approx(expected["BBM_20_2.0_2.0"][i], rel=1e-6)
-        assert upper[i] == pytest.approx(expected["BBU_20_2.0_2.0"][i], rel=1e-6)
-        assert lower[i] == pytest.approx(expected["BBL_20_2.0_2.0"][i], rel=1e-6)
+        assert mid[i] == pytest.approx(expected["BBM_20_2.0_2.0"].iloc[i], rel=1e-6)
+        assert upper[i] == pytest.approx(expected["BBU_20_2.0_2.0"].iloc[i], rel=1e-6)
+        assert lower[i] == pytest.approx(expected["BBL_20_2.0_2.0"].iloc[i], rel=1e-6)
