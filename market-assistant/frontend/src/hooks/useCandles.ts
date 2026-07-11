@@ -32,8 +32,9 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
     const params = new URLSearchParams({ symbol, tf, from, to });
     fetch(`${API_BASE}/candles?${params.toString()}`)
       .then((res) => res.json())
-      .then((history: Candle[]) => {
+      .then((body: { candles: Candle[] }) => {
         if (cancelled) return;
+        const history = body.candles;
         candlesRef.current = history;
         setCandles(history);
       })

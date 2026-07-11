@@ -21,3 +21,9 @@ class CandleOut(BaseModel):
     v: float
 
     model_config = {"from_attributes": True}
+
+
+class CandlesResponse(BaseModel):
+    candles: list[CandleOut]
+    delayed: bool
+    delay_minutes: int

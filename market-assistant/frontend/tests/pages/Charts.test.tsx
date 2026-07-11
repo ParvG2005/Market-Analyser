@@ -28,7 +28,10 @@ class FakeWebSocket {
 
 beforeEach(() => {
   vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => [] }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({ json: async () => ({ candles: [], delayed: false, delay_minutes: 0 }) }),
+  );
 });
 
 describe("ChartsPage", () => {
