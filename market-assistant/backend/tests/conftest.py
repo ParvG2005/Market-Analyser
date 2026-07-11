@@ -1,3 +1,15 @@
+# ruff: noqa: E402 -- DATABASE_URL must be set before app.core.config is imported
+import os
+
+# Test hermeticity: neutralize a developer-local .env (e.g. a Supabase
+# DATABASE_URL lacking the +asyncpg driver, which breaks the async engine).
+# In pydantic-settings, an OS env var outranks the .env file; setdefault beats
+# the .env yet still respects an explicit `DATABASE_URL` export, so `pytest`
+# stays hermetic against local Postgres (CI has no .env and gets this default).
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+asyncpg://market:market@localhost:5434/market_assistant"
+)
+
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
