@@ -4,15 +4,16 @@ A rule/instrument/timeframe/bar tuple should produce at most one ``scan_hit``
 even if the candle-close event is replayed (arq retry, duplicate publish). The
 first writer atomically claims the key with ``SET key 1 NX EX``; any later
 attempt for the same tuple sees the key already set and is treated as a
-duplicate. The TTL is comfortably longer than the largest timeframe's same-bar
-replay window, then expires so the key set stays bounded.
+duplicate. The TTL comfortably exceeds the largest timeframe's same-bar replay
+window (the DSL's largest tf is ``1d``, so 48h leaves ample margin), then
+expires so the key set stays bounded.
 """
 
 from __future__ import annotations
 
 from redis.asyncio import Redis
 
-DEDUP_TTL_SECONDS = 6 * 3600
+DEDUP_TTL_SECONDS = 48 * 3600
 
 
 def dedup_key(rule_id: int, instrument_id: int, tf: str, bar_ts: str) -> str:

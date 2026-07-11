@@ -31,6 +31,14 @@ export function RuleBuilder({ onSubmit, pending = false }: RuleBuilderProps) {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   };
 
+  // The worker only evaluates the closing timeframe's snapshot, so a rule that
+  // mixes timeframes silently never fires. Keep the tf shared across all rows:
+  // changing any row's tf rewrites every row's tf, so the builder can only emit
+  // a uniform-tf rule.
+  const updateTimeframe = (tf: Timeframe) => {
+    setRows((prev) => prev.map((row) => ({ ...row, tf })));
+  };
+
   const removeRow = (index: number) => {
     setRows((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   };
@@ -72,7 +80,7 @@ export function RuleBuilder({ onSubmit, pending = false }: RuleBuilderProps) {
               data-testid={`row-${i}-tf`}
               className="rb-select"
               value={row.tf}
-              onChange={(e) => updateRow(i, { tf: e.target.value as Timeframe })}
+              onChange={(e) => updateTimeframe(e.target.value as Timeframe)}
             >
               {TIMEFRAMES.map((tf) => (
                 <option key={tf} value={tf}>

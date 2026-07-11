@@ -8,8 +8,7 @@ export type Indicator =
   | "atr"
   | "adx"
   | "rel_volume"
-  | "gap_pct"
-  | "bollinger";
+  | "gap_pct";
 
 export interface Condition {
   ind: Indicator;
@@ -36,7 +35,7 @@ export interface ScanHit {
   instrument_id: number;
   tf: Timeframe;
   ts: string;
-  payload: Record<string, number>;
+  payload: Record<string, number | null>;
 }
 
 export const INDICATORS: Indicator[] = [
@@ -48,7 +47,6 @@ export const INDICATORS: Indicator[] = [
   "adx",
   "rel_volume",
   "gap_pct",
-  "bollinger",
 ];
 
 export const TIMEFRAMES: Timeframe[] = ["1m", "5m", "15m", "1h", "1d"];

@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-VALID_INDICATORS = {"rsi", "ema", "sma", "vwap", "atr", "adx", "rel_volume", "gap_pct", "bollinger"}
+VALID_INDICATORS = {"rsi", "ema", "sma", "vwap", "atr", "adx", "rel_volume", "gap_pct"}
 VALID_TFS = {"1m", "5m", "15m", "1h", "1d"}
 VALID_OPS = {"<", "<=", ">", ">=", "==", "!="}
 

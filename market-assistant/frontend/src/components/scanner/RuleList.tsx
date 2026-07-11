@@ -40,12 +40,16 @@ export function RuleList({ rules, isLoading = false, onToggle, onDelete }: RuleL
             </Badge>
           </div>
           <div className="ri-conds">
-            {rule.definition.all.map((c, i) => (
-              <span className="ri-cond num" key={i}>
-                {i > 0 && <span className="ri-and">AND</span>}
-                {conditionText(c)}
-              </span>
-            ))}
+            {(rule.definition.all ?? []).length > 0 ? (
+              (rule.definition.all ?? []).map((c, i) => (
+                <span className="ri-cond num" key={i}>
+                  {i > 0 && <span className="ri-and">AND</span>}
+                  {conditionText(c)}
+                </span>
+              ))
+            ) : (
+              <span className="ri-cond">Custom rule</span>
+            )}
           </div>
           <div className="ri-actions">
             <button

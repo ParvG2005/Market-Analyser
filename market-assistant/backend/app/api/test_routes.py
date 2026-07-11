@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from redis.asyncio import Redis
@@ -31,7 +30,7 @@ class ReplayRequest(BaseModel):
 
 
 def _rsi_dip_with_volume_spike_series() -> tuple[list[float], list[float]]:
-    closes = [100.0] * 40 + list(np.linspace(100, 70, 15))
+    closes = [100.0] * 40 + [100.0 - i * (30.0 / 14) for i in range(15)]
     volumes = [20.0] * 55
     volumes[50] = 200.0
     return closes, volumes

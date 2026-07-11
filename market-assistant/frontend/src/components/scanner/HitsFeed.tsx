@@ -24,29 +24,37 @@ export function HitsFeed({ hits }: HitsFeedProps) {
 
   return (
     <ul className="hits-feed" data-testid="hits-feed">
-      {hits.map((hit, i) => (
-        <li className="hit-item" key={`${hit.rule_id}-${hit.instrument_id}-${hit.ts}-${i}`}>
-          <div className="hit-head">
-            <span className="hit-name">{hit.rule_name}</span>
-            <span className="hit-meta num">
-              #{hit.instrument_id} · {hit.tf}
-            </span>
-          </div>
-          <div className="hit-body">
-            <span className="hit-payload num">
-              {Object.entries(hit.payload)
-                .map(([k, v]) => `${k}: ${v}`)
-                .join(", ")}
-            </span>
-            <span
-              className="hit-spark"
-              data-testid={`sparkline-${hit.rule_id}-${hit.instrument_id}`}
-            >
-              <Sparkline points={[hit.payload.rsi ?? 0, hit.payload.rel_volume ?? 0]} />
-            </span>
-          </div>
-        </li>
-      ))}
+      {hits.map((hit, i) => {
+        // Prod payloads use period-suffixed keys (e.g. `rsi:14`); strip the
+        // suffix so we can read bare indicator names and show clean labels.
+        const bare: Record<string, number | null> = Object.fromEntries(
+          Object.entries(hit.payload).map(([k, v]) => [k.split(":")[0], v]),
+        );
+        return (
+          <li className="hit-item" key={`${hit.rule_id}-${hit.instrument_id}-${hit.ts}-${i}`}>
+            <div className="hit-head">
+              <span className="hit-name">{hit.rule_name}</span>
+              <span className="hit-meta num">
+                #{hit.instrument_id} · {hit.tf}
+              </span>
+            </div>
+            <div className="hit-body">
+              <span className="hit-payload num">
+                {Object.entries(bare)
+                  .filter(([, v]) => v !== null)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(", ")}
+              </span>
+              <span
+                className="hit-spark"
+                data-testid={`sparkline-${hit.rule_id}-${hit.instrument_id}`}
+              >
+                <Sparkline points={[bare.rsi ?? 0, bare.rel_volume ?? 0]} />
+              </span>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }
