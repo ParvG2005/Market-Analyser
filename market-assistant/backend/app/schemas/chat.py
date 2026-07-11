@@ -35,6 +35,10 @@ class ChatTurnRequest(BaseModel):
 class ToolCall(BaseModel):
     name: str
     arguments: dict[str, Any]
+    # Provider-assigned call id, used to pair the assistant tool_use turn with
+    # its tool result across rounds. Synthesized by the orchestrator if a
+    # provider does not supply one.
+    id: str | None = None
 
 
 class ToolResult(BaseModel):

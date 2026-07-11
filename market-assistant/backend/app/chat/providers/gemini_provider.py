@@ -1,11 +1,61 @@
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 from typing import Any
 
 from app.chat.providers.base import ProviderChunk
 from app.core.config import get_settings
 from app.schemas.chat import ToolCall
+
+
+def _to_gemini(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
+    """Translate the orchestrator's OpenAI-style transcript to Gemini shape.
+
+    Gemini uses ``system_instruction`` (returned separately), roles "user" /
+    "model", and typed parts: ``function_call`` for a tool request and
+    ``function_response`` for its result. Pairing is by name, not id.
+    """
+    system_parts: list[str] = []
+    contents: list[dict[str, Any]] = []
+    for m in messages:
+        role = m.get("role")
+        if role == "system":
+            if m.get("content"):
+                system_parts.append(m["content"])
+        elif role == "assistant" and m.get("tool_calls"):
+            parts: list[Any] = []
+            if m.get("content"):
+                parts.append(m["content"])
+            for tc in m["tool_calls"]:
+                fn = tc["function"]
+                parts.append(
+                    {
+                        "function_call": {
+                            "name": fn["name"],
+                            "args": json.loads(fn["arguments"] or "{}"),
+                        }
+                    }
+                )
+            contents.append({"role": "model", "parts": parts})
+        elif role == "tool":
+            contents.append(
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "function_response": {
+                                "name": m.get("name", "tool"),
+                                "response": {"result": m.get("content", "")},
+                            }
+                        }
+                    ],
+                }
+            )
+        else:
+            gemini_role = "model" if role == "assistant" else "user"
+            contents.append({"role": gemini_role, "parts": [m.get("content", "")]})
+    return "\n\n".join(system_parts), contents
 
 
 class GeminiProvider:
@@ -20,8 +70,11 @@ class GeminiProvider:
 
         genai: Any = _genai
         genai.configure(api_key=self.api_key)
-        model = genai.GenerativeModel(self.model, tools=tools)
-        response = await model.generate_content_async(messages, stream=True)
+        system, contents = _to_gemini(messages)
+        model = genai.GenerativeModel(
+            self.model, tools=tools, system_instruction=system or None
+        )
+        response = await model.generate_content_async(contents, stream=True)
         async for chunk in response:
             if getattr(chunk, "text", None):
                 yield ProviderChunk(type="token", text=chunk.text)

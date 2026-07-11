@@ -7,6 +7,7 @@ then fall back) and the advice guard before persisting the turn.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -75,14 +76,19 @@ async def _run_rounds(
     tool_events: list[ToolResult] = []
     text_parts: list[str] = []
     for _round in range(MAX_TOOL_ROUNDS):
-        made_tool_call = False
+        round_text: list[str] = []
+        round_calls: list[tuple[Any, ToolResult]] = []
         async for chunk in provider.stream(messages, TOOL_SCHEMAS):
             if chunk.type == "token" and chunk.text:
                 text_parts.append(chunk.text)
+                round_text.append(chunk.text)
             elif chunk.type == "tool_call" and chunk.tool_call:
-                made_tool_call = True
-                result = await dispatch_tool_call(chunk.tool_call, ctx={"db": db})
+                call = chunk.tool_call
+                if not call.id:
+                    call.id = f"call_{_round}_{len(round_calls)}"
+                result = await dispatch_tool_call(call, ctx={"db": db})
                 tool_events.append(result)
+                round_calls.append((call, result))
                 db.add(
                     ChatMessage(
                         session_id=session_id,
@@ -98,13 +104,37 @@ async def _run_rounds(
                         ],
                     )
                 )
-                messages.append(
-                    {
-                        "role": "tool",
-                        "name": result.name,
-                        "content": str(result.data if result.ok else result.error),
-                    }
-                )
-        if not made_tool_call:
+        if not round_calls:
             break
+        # Record the assistant's tool_use turn *and* the paired results in the
+        # running transcript. Without the assistant turn the model can't tell
+        # which call each result answers, so it re-issues the same calls every
+        # round and never converges to a final answer. Canonical shape is
+        # OpenAI-style; non-OpenAI providers translate it in their stream().
+        messages.append(
+            {
+                "role": "assistant",
+                "content": "".join(round_text),
+                "tool_calls": [
+                    {
+                        "id": call.id,
+                        "type": "function",
+                        "function": {
+                            "name": call.name,
+                            "arguments": json.dumps(call.arguments),
+                        },
+                    }
+                    for call, _ in round_calls
+                ],
+            }
+        )
+        for call, result in round_calls:
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "name": result.name,
+                    "content": str(result.data if result.ok else result.error),
+                }
+            )
     return "".join(text_parts), tool_events

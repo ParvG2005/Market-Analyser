@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
+    ANTHROPIC_MODEL: str = "claude-sonnet-5"
     CHAT_RATE_LIMIT: int = 30
     CHAT_RATE_WINDOW_SECONDS: int = 3600
 
