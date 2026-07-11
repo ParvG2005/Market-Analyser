@@ -284,3 +284,45 @@ a { color: inherit; text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   .rail { transition: none; }
 }
+
+/* scanner page */
+.scanner-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--space-4); margin-top: var(--space-4); align-items: start; }
+.scanner-col { display: flex; flex-direction: column; gap: var(--space-4); }
+@media (max-width: 900px) { .scanner-grid { grid-template-columns: 1fr; } }
+
+.rule-builder { display: flex; flex-direction: column; gap: var(--space-3); }
+.rb-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.rb-label { font-size: var(--text-xs); color: var(--ink-dim); font-weight: 600; }
+.rb-name { background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 9px 11px; color: var(--ink); font: inherit; font-size: 12px; }
+.rb-name::placeholder { color: var(--ink-faint); }
+
+.rb-rows { display: flex; flex-direction: column; gap: var(--space-2); }
+.rb-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.rb-conj { font-size: var(--text-xs); font-weight: 700; color: var(--ink-faint); letter-spacing: 0.05em; }
+.rb-select { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 9px; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.rb-op { font-family: var(--font-mono); }
+.rb-value { width: 90px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 9px; color: var(--ink); font: inherit; font-size: 12px; }
+.rb-remove { margin-left: auto; background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--ink-dim); width: 26px; height: 26px; font-size: 16px; line-height: 1; cursor: pointer; }
+.rb-remove:hover:not(:disabled) { color: var(--down); border-color: var(--down); }
+.rb-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.rb-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-1); }
+.rb-add { background: var(--panel-2); border: 1px dashed var(--line-strong); border-radius: var(--radius-md); color: var(--ink-dim); padding: 8px var(--space-3); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.rb-add:hover { color: var(--ink); border-color: var(--accent); }
+.rb-save { background: var(--accent); color: var(--accent-ink); border: none; border-radius: var(--radius-md); padding: 9px var(--space-4); font: inherit; font-weight: 650; cursor: pointer; }
+.rb-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.scanner-err { margin-top: var(--space-2); font-size: var(--text-sm); color: var(--down); }
+
+.rl-empty { font-size: var(--text-sm); color: var(--ink-dim); }
+.rule-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.rule-item { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); background: var(--panel-2); }
+.ri-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.ri-name { font-weight: 650; font-size: 12px; }
+.ri-conds { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.ri-cond { font-size: var(--text-sm); color: var(--ink-dim); }
+.ri-and { color: var(--ink-faint); font-weight: 700; margin-right: var(--space-1); }
+.ri-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+.ri-btn { background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--ink-dim); padding: 5px var(--space-3); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+.ri-btn:hover { color: var(--ink); border-color: var(--accent); }
+.ri-del:hover { color: var(--down); border-color: var(--down); }
