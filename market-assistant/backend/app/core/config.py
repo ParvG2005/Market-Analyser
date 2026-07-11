@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     EQUITY_POLL_INTERVAL_MIN: int = 15
     EQUITY_DELAY_MINUTES: int = 15
 
+    # Chat assistant (Phase 10). Tests use a scripted provider, so keys may be unset.
+    LLM_PROVIDER: str = "groq"
+    GROQ_API_KEY: str | None = None
+    GEMINI_API_KEY: str | None = None
+    ANTHROPIC_API_KEY: str | None = None
+    CHAT_RATE_LIMIT: int = 30
+    CHAT_RATE_WINDOW_SECONDS: int = 3600
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -16,6 +16,11 @@ dependencies = [
   "websockets>=12.0",
   "scikit-learn>=1.4",
   "lightgbm>=4.3",
+  "pgvector>=0.3",
+  "sentence-transformers>=3.0",
+  "anthropic>=0.40",
+  "groq>=0.11",
+  "google-generativeai>=0.8",
 ]
 
 [project.optional-dependencies]
