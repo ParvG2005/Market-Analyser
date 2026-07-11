@@ -52,6 +52,28 @@ def _btc_15m_3mo() -> pd.DataFrame:
     )
 
 
+def _btc_15m_3mo_with_funding() -> pd.DataFrame:
+    """Same base OHLCV as ``btc_15m_3mo`` plus a deterministic ``funding_rate``
+    column: a triangle wave oscillating with amplitude 0.004, well past the
+    default preset thresholds of +-0.0025, on a period short enough (240
+    bars = 2.5 days) to cross both extremes many times across the fixture's
+    5760 bars -- so a trailing-window walk-forward sees fresh extremes
+    repeatedly, not just once."""
+    df = _btc_15m_3mo()
+    n = len(df)
+    i = np.arange(n, dtype=float)
+
+    period = 240.0
+    amplitude = 0.004
+    # Triangle wave in [-1, 1] via arcsin(sin(.)) normalization, scaled to
+    # +-amplitude. Pure arithmetic, no randomness.
+    phase = (i / period) % 1.0
+    triangle = np.where(phase < 0.5, 4.0 * phase - 1.0, 3.0 - 4.0 * phase)
+    df = df.copy()
+    df["funding_rate"] = amplitude * triangle
+    return df
+
+
 def load_fixture_candles(name: str) -> pd.DataFrame:
     """Return a deterministic synthetic OHLCV DataFrame for ``name``.
 
@@ -60,4 +82,6 @@ def load_fixture_candles(name: str) -> pd.DataFrame:
     """
     if name == "btc_15m_3mo":
         return _btc_15m_3mo()
+    if name == "btc_15m_3mo_with_funding":
+        return _btc_15m_3mo_with_funding()
     raise ValueError(f"unknown fixture name: {name!r}")
