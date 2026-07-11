@@ -6,6 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # Deployment environment. Only "test" mounts the test-only replay route
+    # (see app.main); never set to "test" in production.
+    env: str = "dev"
     database_url: str = "postgresql+asyncpg://market:market@localhost:5434/market_assistant"
     redis_url: str = "redis://localhost:6379/0"
     UNIVERSE_SIZE: int = 20

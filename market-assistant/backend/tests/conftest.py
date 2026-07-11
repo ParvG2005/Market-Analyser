@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import numpy as np
 import pytest
 import redis as redis_sync
 from alembic.config import Config
@@ -13,6 +14,7 @@ from app.core.deps import get_engine, get_redis, get_session
 from app.main import create_app
 from app.models.candle import CandleRow
 from app.models.instrument import Instrument
+from app.scanner.worker import on_candle_close
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -229,3 +231,66 @@ async def seed_btc_1m_candles(db_session):
         )
     await db_session.commit()
     return instrument
+
+
+def _rsi_dip_with_volume_spike_series() -> tuple[list[float], list[float]]:
+    # Matches Task 5's golden series: 40 flat bars, then a 15-bar monotonic
+    # RSI-triggering drop; a single relative-volume spike at bar index 50.
+    # By bar 50 the close series has fallen monotonically (RSI -> ~0, < 30) and
+    # rel_volume(20) = 200 / 20-baseline = 10 (> 2), so the AND rule fires there.
+    closes = [100.0] * 40 + list(np.linspace(100, 70, 15))
+    volumes = [20.0] * 55
+    volumes[50] = 200.0
+    return closes, volumes
+
+
+@pytest.fixture
+async def replay_synthetic_candles(db_session, redis_client):
+    """Replay a synthetic candle series through the production candle-close path.
+
+    CRITICAL: ``on_candle_close`` builds a FRESH ``IndicatorCache`` on every call
+    and warm-starts it by loading candle history FROM THE DB (via ``ctx["db"]``),
+    then appends only the one passed candle. So a bar only has enough history to
+    make rsi/rel_volume non-NaN if the PRIOR bars are already persisted. We
+    therefore PROCESS bar i against persisted history 0..i-1, THEN persist bar i
+    on the SAME session (SAVEPOINT-isolated, so a separate connection wouldn't
+    see the flushed rows) so the NEXT bar's warm-start can read it.
+    """
+
+    async def _replay(instrument_id: int, tf: str, scenario: str) -> None:
+        if scenario != "rsi_dip_with_volume_spike":
+            raise ValueError(f"unknown scenario {scenario!r}")
+        closes, volumes = _rsi_dip_with_volume_spike_series()
+        for i, (c, v) in enumerate(zip(closes, volumes, strict=True)):
+            ts = f"2026-01-01T00:{i:02d}:00Z"
+            candle = {
+                "ts": ts,
+                "o": c - 0.1,
+                "h": c + 0.5,
+                "l": c - 0.5,
+                "c": c,
+                "v": v,
+            }
+            # 1) process bar i against history 0..i-1 (a hit may fire here)
+            await on_candle_close(
+                {"db": db_session, "redis": redis_client},
+                instrument_id=instrument_id,
+                tf=tf,
+                candle=candle,
+            )
+            # 2) persist bar i so the next bar's warm-start sees it
+            db_session.add(
+                CandleRow(
+                    instrument_id=instrument_id,
+                    tf=tf,
+                    ts=datetime.fromisoformat(ts.replace("Z", "+00:00")),
+                    o=c - 0.1,
+                    h=c + 0.5,
+                    l=c - 0.5,
+                    c=c,
+                    v=v,
+                )
+            )
+            await db_session.flush()
+
+    return _replay
