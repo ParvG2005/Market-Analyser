@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Badge } from "../common/Badge";
 import type { MiniBacktestResult, StrategyMeta } from "../../hooks/useStrategies";
@@ -8,6 +8,9 @@ interface PresetCardProps {
   preset: StrategyMeta;
   onToggle: (enabled: boolean) => void;
   onBacktest: (params: Record<string, number>) => void;
+  /** Persisted enabled state for this preset (from the saved config). Drives
+   * the toggle so a disabled preset reads Off on reload. Defaults to false. */
+  enabled?: boolean;
   /** Honest mini-backtest result to display. Null/undefined = not run yet. */
   result?: MiniBacktestResult | null;
   /** True while this card's mini-backtest request is in flight. */
@@ -52,12 +55,17 @@ export function PresetCard({
   preset,
   onToggle,
   onBacktest,
+  enabled: persistedEnabled = false,
   result,
   pending = false,
   error,
 }: PresetCardProps) {
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(persistedEnabled);
   const [params, setParams] = useState<Record<string, number>>(preset.default_params);
+
+  // Re-sync when the persisted state arrives/changes (configs load after the
+  // first render, and a mutation refetch confirms the flip).
+  useEffect(() => setEnabled(persistedEnabled), [persistedEnabled]);
 
   const stats = result?.stats;
 

@@ -33,6 +33,18 @@ describe("PresetCard", () => {
     expect(onToggle).toHaveBeenCalledWith(true);
   });
 
+  it("reflects the persisted enabled state and toggles off to false", () => {
+    const onToggle = vi.fn();
+    render(
+      <PresetCard preset={orbMeta} enabled onToggle={onToggle} onBacktest={vi.fn()} />,
+    );
+    const sw = screen.getByRole("switch", { name: /enable orb/i });
+    expect(sw).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("On")).toBeInTheDocument();
+    fireEvent.click(sw);
+    expect(onToggle).toHaveBeenCalledWith(false);
+  });
+
   it("calls onBacktest with the current params when the backtest button is clicked", () => {
     const onBacktest = vi.fn();
     render(<PresetCard preset={orbMeta} onToggle={vi.fn()} onBacktest={onBacktest} />);

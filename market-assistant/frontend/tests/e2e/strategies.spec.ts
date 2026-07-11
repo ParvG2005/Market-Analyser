@@ -58,19 +58,24 @@ async function installFakeBackend(page: import("@playwright/test").Page) {
       }
 
       if (url.includes("/api/strategy-configs")) {
+        const config = {
+          id: 1,
+          user_id: "00000000-0000-0000-0000-000000000001",
+          strategy: "orb",
+          instrument_id: 1,
+          tf: "15m",
+          params: { or_bars: 4, rr: 2.0, min_rel_volume: 2.0 },
+          enabled: true,
+        };
+        // GET lists configs (array); POST upserts one (object echo). The page
+        // reads the list to reflect each card's persisted enabled state, so the
+        // GET must return an array or `configs.filter(...)` throws.
+        const isPost = (init?.method ?? "GET").toUpperCase() === "POST";
         return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              id: 1,
-              user_id: "00000000-0000-0000-0000-000000000001",
-              strategy: "orb",
-              instrument_id: 1,
-              tf: "15m",
-              params: { or_bars: 4, rr: 2.0, min_rel_volume: 2.0 },
-              enabled: true,
-            }),
-            { status: 201, headers: { "content-type": "application/json" } },
-          ),
+          new Response(JSON.stringify(isPost ? config : []), {
+            status: isPost ? 201 : 200,
+            headers: { "content-type": "application/json" },
+          }),
         );
       }
 

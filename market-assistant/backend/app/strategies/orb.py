@@ -1,9 +1,18 @@
 """Opening Range Breakout (ORB) preset.
 
-Defines an "opening range" from the first `or_bars` bars of the candles
-handed to `generate_signals` and fires a long/short signal on the first
-subsequent bar that closes outside that range on confirming relative
-volume (`app.scanner.indicators.rel_volume`).
+Defines an "opening range" from the first `or_bars` bars of the *most recent
+UTC-day session* present in the candles handed to `generate_signals` and fires
+a long/short signal on the first subsequent bar in that session that closes
+outside the range on confirming relative volume
+(`app.scanner.indicators.rel_volume`).
+
+Session-anchoring matters because the live worker re-feeds a long rolling
+window (~500 bars ≈ several days) on every candle close. Anchoring the opening
+range to the window's oldest bars would fix it to a session days in the past
+and emit a single ancient breakout that the per-bar dedup then suppresses
+forever -- today's breakout would never surface. Anchoring to the latest
+session yields today's opening range and today's breakout, and resets cleanly
+each UTC day.
 """
 
 from __future__ import annotations
@@ -16,6 +25,19 @@ from app.scanner.indicators import rel_volume
 from app.strategies.base import SignalCandidate
 from app.strategies.levels import candle_ts, rr_target
 from app.strategies.registry import register
+
+
+def _latest_session(candles: pd.DataFrame) -> pd.DataFrame:
+    """Sub-frame of the bars sharing the most recent bar's UTC day.
+
+    Positional (numpy) masking keeps this correct for both frame shapes the
+    presets see: a ``ts`` COLUMN over a RangeIndex (live worker / API) and a
+    DatetimeIndex (backtest bridge). tz-aware and naive timestamps both
+    normalize cleanly.
+    """
+    ts = candles["ts"] if "ts" in candles.columns else candles.index.to_series()
+    days = pd.to_datetime(pd.Series(ts.to_numpy())).dt.normalize().to_numpy()
+    return candles.iloc[days == days[-1]]
 
 
 class ORBStrategy:
@@ -46,15 +68,19 @@ class ORBStrategy:
         if len(candles) <= or_bars:
             return []
 
-        opening_range = candles.iloc[:or_bars]
+        session = _latest_session(candles)
+        if len(session) <= or_bars:
+            return []
+
+        opening_range = session.iloc[:or_bars]
         or_high = float(opening_range["h"].max())
         or_low = float(opening_range["l"].min())
 
-        rv = rel_volume(candles["v"].astype(float).tolist(), period=or_bars)
+        rv = rel_volume(session["v"].astype(float).tolist(), period=or_bars)
         signals: list[SignalCandidate] = []
 
-        for i in range(or_bars, len(candles)):
-            bar = candles.iloc[i]
+        for i in range(or_bars, len(session)):
+            bar = session.iloc[i]
             bar_rel_vol = rv[i]
             if bar_rel_vol != bar_rel_vol:  # NaN check without importing math
                 continue
@@ -62,7 +88,7 @@ class ORBStrategy:
                 entry = float(bar["c"])
                 signals.append(
                     SignalCandidate(
-                        ts=candle_ts(candles, i),
+                        ts=candle_ts(session, i),
                         direction="long",
                         ref_entry=entry,
                         ref_sl=or_low,
@@ -75,7 +101,7 @@ class ORBStrategy:
                 entry = float(bar["c"])
                 signals.append(
                     SignalCandidate(
-                        ts=candle_ts(candles, i),
+                        ts=candle_ts(session, i),
                         direction="short",
                         ref_entry=entry,
                         ref_sl=or_high,
