@@ -1,0 +1,133 @@
+name: Deploy
+
+# Production deploys run only on merge to main and only AFTER the full CI gate
+# passes. Pull requests get a non-prod Vercel preview (frontend only).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
+  # Backend → Hugging Face Space (Docker SDK). Uploading the backend folder to
+  # the Space repo triggers HF to rebuild and restart the container.
+  deploy-backend:
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "huggingface_hub>=0.25"
+      - name: Upload backend to the HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
+        run: |
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          HfApi().upload_folder(
+              folder_path="market-assistant/backend",
+              repo_id=os.environ["HF_SPACE_ID"],
+              repo_type="space",
+              token=os.environ["HF_TOKEN"],
+              commit_message="CI deploy from main",
+              ignore_patterns=[".venv/*", "__pycache__/*", "**/__pycache__/*",
+                               "*.pyc", ".pytest_cache/*", "tests/*"],
+          )
+          PY
+
+  # Frontend → Vercel production (prebuilt; git auto-deploy is disabled in vercel.json).
+  deploy-frontend:
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    defaults:
+      run:
+        working-directory: market-assistant/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: market-assistant/frontend/package-lock.json
+      - run: npm ci
+      - run: npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - run: npx vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - run: npx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+  # PR preview → Vercel (non-prod, staging env vars), URL commented on the PR.
+  preview-frontend:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    defaults:
+      run:
+        working-directory: market-assistant/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: market-assistant/frontend/package-lock.json
+      - run: npm ci
+      - run: npx vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - run: npx vercel build --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - id: deploy
+        run: echo "url=$(npx vercel deploy --prebuilt --token=\"$VERCEL_TOKEN\")" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🔎 Vercel preview: ${{ steps.deploy.outputs.url }}`,
+            })
+
+  # Post-deploy smoke against the live URLs. Gate for phase exit.
+  smoke:
+    if: github.event_name == 'push'
+    needs: [deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: market-assistant/backend
+    env:
+      STAGING_URL: ${{ secrets.STAGING_URL }}
+      STAGING_WS_URL: ${{ secrets.STAGING_WS_URL }}
+      STAGING_FRONTEND_URL: ${{ secrets.STAGING_FRONTEND_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -m smoke -v
