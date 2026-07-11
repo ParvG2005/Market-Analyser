@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { presetAuth } from "./_auth-helper";
+
 /**
  * Phase 8 journey: a NIFTY-50 equity (RELIANCE.NS) surfaces as a 15-min-delayed
  * feed across the Universe list and the live chart, and the ORB mini-backtest
@@ -148,6 +150,7 @@ async function installFakeBackend(page: import("@playwright/test").Page) {
 test("NIFTY-50 equity shows a 15-min delay badge in Universe and Charts, and ORB backtest returns stats", async ({
   page,
 }) => {
+  await presetAuth(page);
   await installFakeBackend(page);
 
   // 1. Universe lists the equity as a 15-min-delayed feed.

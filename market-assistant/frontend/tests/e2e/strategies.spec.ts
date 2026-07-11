@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { presetAuth } from "./_auth-helper";
+
 /**
  * Drives the real Strategies page against a deterministic fake backend:
  * `fetch` is stubbed to serve the ORB preset, echo the strategy-config
@@ -130,6 +132,7 @@ async function installFakeBackend(page: import("@playwright/test").Page) {
 }
 
 test("enable ORB on BTC 15m and see a recommendation card with stats", async ({ page }) => {
+  await presetAuth(page);
   await installFakeBackend(page);
   await page.goto("/strategies");
 

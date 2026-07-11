@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { presetAuth } from "./_auth-helper";
+
 /**
  * Drives the real ChartsPage + lightweight-charts render against a deterministic
  * feed: `fetch` is stubbed to return seed history and `WebSocket` is replaced
@@ -76,6 +78,7 @@ async function installFakeFeed(page: import("@playwright/test").Page) {
 }
 
 test("chart renders and last bar ticks live as new BTC 1m candles form", async ({ page }) => {
+  await presetAuth(page);
   await installFakeFeed(page);
   await page.goto("/charts");
 
@@ -97,6 +100,7 @@ test("chart renders and last bar ticks live as new BTC 1m candles form", async (
 });
 
 test("overlays compute and render correctly across a TF switch", async ({ page }) => {
+  await presetAuth(page);
   await installFakeFeed(page);
   await page.goto("/charts");
 
