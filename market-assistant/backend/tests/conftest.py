@@ -168,6 +168,31 @@ def redis_sync_client():
 
 
 @pytest.fixture
+async def redis_client():
+    # Async Redis client (decode_responses=True) against the app's instance,
+    # for the scanner worker's pub/sub fan-out and dedup keys. Skips when Redis
+    # is unreachable. Do NOT aclose/cache_clear here: the autouse
+    # _reset_cached_engine fixture already disposes get_redis after the test;
+    # a double-close would error.
+    client = get_redis()
+    try:
+        await client.ping()
+    except Exception:
+        pytest.skip("Redis not available")
+    yield client
+
+
+@pytest.fixture
+async def sample_instrument(db_session):
+    instrument = Instrument(
+        symbol="BTC/USDT", asset_class="crypto", exchange="binance", active=True
+    )
+    db_session.add(instrument)
+    await db_session.flush()
+    return instrument
+
+
+@pytest.fixture
 async def seed_btc_1m_candles(db_session):
     instrument = Instrument(
         symbol="BTC/USDT", asset_class="crypto", exchange="binance", active=True
