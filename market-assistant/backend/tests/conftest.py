@@ -2,6 +2,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
+import pandas as pd
 import pytest
 import redis as redis_sync
 from alembic.config import Config
@@ -294,3 +295,24 @@ async def replay_synthetic_candles(db_session, redis_client):
             await db_session.flush()
 
     return _replay
+
+
+@pytest.fixture
+def fixture_trending_candles() -> pd.DataFrame:
+    """Synthetic 60-bar monotonically-rising OHLCV series (deterministic,
+    arithmetic-only) engineered so the repo's real `adx()` yields a strongly
+    trending last value (verified empirically: last ADX == 100.0, well above
+    any `min_adx_trend` threshold used in tests).
+
+    A clean, noise-free linear uptrend maximizes +DI relative to -DI (down
+    moves never occur), so ADX saturates at 100 — deliberately steep/clean
+    rather than a realistic price series, to make the gate's trend/range
+    branches unambiguous in tests.
+    """
+    n = 60
+    closes = [100.0 + i * 2.0 for i in range(n)]
+    highs = [c + 1.0 for c in closes]
+    lows = [c - 1.0 for c in closes]
+    opens = [c - 1.5 for c in closes]
+    volumes = [1_000.0] * n
+    return pd.DataFrame({"o": opens, "h": highs, "l": lows, "c": closes, "v": volumes})
