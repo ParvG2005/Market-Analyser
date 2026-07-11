@@ -1,5 +1,12 @@
+import json
+import time
+import uuid
+
 import pytest
+from fastapi.testclient import TestClient
 from httpx import AsyncClient
+
+from app.main import create_app
 
 VALID_RULE = {
     "name": "RSI dip + volume spike",
@@ -61,3 +68,26 @@ async def test_delete_removes_rule(client: AsyncClient, auth_headers: dict):
     assert resp.status_code == 204
     resp2 = await client.get(f"/api/scanner/rules/{created['id']}", headers=auth_headers)
     assert resp2.status_code == 404
+
+
+def test_ws_hits_channel_streams_published_event(redis_sync_client):
+    user_id = uuid.uuid4()
+    token = str(user_id)  # dev stub: the token IS the user's UUID
+    with TestClient(create_app()) as tc:
+        with tc.websocket_connect(f"/ws/scanner/hits?token={token}") as ws:
+            time.sleep(0.2)  # let the server complete SUBSCRIBE before we publish
+            redis_sync_client.publish(
+                f"scan_hits:{user_id}",
+                json.dumps(
+                    {
+                        "rule_id": 1,
+                        "instrument_id": 2,
+                        "tf": "5m",
+                        "ts": "2026-01-01T00:05:00Z",
+                        "payload": {},
+                    }
+                ),
+            )
+            received = json.loads(ws.receive_text())
+            assert received["rule_id"] == 1
+            assert received["instrument_id"] == 2
