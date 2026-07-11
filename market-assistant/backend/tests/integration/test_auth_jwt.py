@@ -132,3 +132,32 @@ async def test_prod_valid_bearer_accepted(client: AsyncClient, prod_settings):
     )
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_raw_uuid_bearer_accepted_in_non_prod(client: AsyncClient):
+    """Non-prod HTTP auth mirrors the WS path: a raw-UUID Bearer (the e2e
+    seeded session token) is accepted and scoped to that user. Prod never is
+    (see test_prod_rejects_raw_uuid_bearer)."""
+    uid_a = str(uuid.uuid4())
+    uid_b = str(uuid.uuid4())
+    created = await client.post("/api/scanner/rules", json=VALID_RULE, headers=bearer(uid_a))
+    assert created.status_code == 201
+    mine = await client.get("/api/scanner/rules", headers=bearer(uid_a))
+    assert mine.status_code == 200
+    assert len(mine.json()) == 1
+    theirs = await client.get("/api/scanner/rules", headers=bearer(uid_b))
+    assert theirs.status_code == 200
+    assert theirs.json() == []
+
+
+@pytest.mark.asyncio
+async def test_non_uuid_bearer_rejected_in_non_prod(client: AsyncClient):
+    resp = await client.get("/api/scanner/rules", headers=bearer("not-a-jwt-not-a-uuid"))
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_prod_rejects_raw_uuid_bearer(client: AsyncClient, prod_settings):
+    resp = await client.get("/api/scanner/rules", headers=bearer(str(uuid.uuid4())))
+    assert resp.status_code == 401

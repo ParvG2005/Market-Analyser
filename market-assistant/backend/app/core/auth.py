@@ -24,8 +24,17 @@ async def get_current_user_id(
         token = authorization[len("Bearer ") :].strip()
         try:
             return verify_token(token, settings).id
-        except ValidationError as exc:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token") from exc
+        except (HTTPException, ValidationError):
+            # Non-prod fallback: legacy test path treats the token as a raw user
+            # UUID (mirrors get_current_user_id_from_ws_token so HTTP and WS auth
+            # agree). This is what the e2e seeded session Bearer relies on.
+            # NEVER active in prod: there a bad Bearer always rejects.
+            if settings.env in _NON_PROD_ENVS:
+                try:
+                    return uuid.UUID(token)
+                except ValueError:
+                    pass
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token") from None
     # 2) Non-prod dev/test convenience: honor X-Dev-User, else the fixed dev user.
     #    (Preserves existing test behavior; NEVER active in prod.)
     if settings.env in _NON_PROD_ENVS:

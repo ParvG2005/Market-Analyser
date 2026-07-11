@@ -16,6 +16,9 @@ dependencies = [
   "websockets>=12.0",
   "scikit-learn>=1.4",
   "lightgbm>=4.3",
+  "pandas>=2.2,<3",
+  "numpy>=1.26,<3",
+  "pandas-ta>=0.3.14b0",
   "pgvector>=0.3",
   "sentence-transformers>=3.0",
   "anthropic>=0.40",
@@ -34,9 +37,6 @@ dev = [
   "ruff>=0.6",
   "mypy>=1.11",
   "hypothesis>=6",
-  "pandas>=2.2",
-  "numpy>=1.26",
-  "pandas-ta>=0.3.14b0",
   "fakeredis>=2.20",
 ]
 

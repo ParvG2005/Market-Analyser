@@ -132,3 +132,17 @@ async def run_ingest(
     finally:
         if created_exchange:
             await exchange_obj.close()
+
+
+def main() -> None:
+    """Process entrypoint: `python -m app.ingest.runner`.
+
+    Runs the live crypto ingestion pipeline until the process is cancelled
+    (SIGINT/SIGTERM). Wired into `docker-entrypoint.sh` as PROCESS_TYPE=ingest
+    and launched alongside web+worker in single-container `all` mode.
+    """
+    asyncio.run(run_ingest())
+
+
+if __name__ == "__main__":
+    main()
