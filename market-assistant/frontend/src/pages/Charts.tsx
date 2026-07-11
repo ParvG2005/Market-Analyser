@@ -28,7 +28,12 @@ export function ChartsPage() {
     vwap: false,
     bollinger: false,
   });
-  const { candles, status } = useCandles(symbol, tf, DEFAULT_FROM, DEFAULT_TO);
+  const { candles, status, delayed, delayMinutes } = useCandles(
+    symbol,
+    tf,
+    DEFAULT_FROM,
+    DEFAULT_TO,
+  );
 
   const { last, changePct } = useMemo(() => {
     if (candles.length === 0) return { last: null as number | null, changePct: 0 };
@@ -73,7 +78,12 @@ export function ChartsPage() {
       </div>
 
       <section className="panel chart-panel">
-        <CandleChart candles={candles} overlays={overlays} />
+        <CandleChart
+          candles={candles}
+          overlays={overlays}
+          delayed={delayed}
+          delayMinutes={delayMinutes}
+        />
       </section>
 
       <p className="disc chart-disc">
