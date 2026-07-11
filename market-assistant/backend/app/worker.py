@@ -15,6 +15,7 @@ from app.ingest.equity_poller import poll_equity_universe
 from app.models.instrument import Instrument
 from app.strategies.worker import on_candle_close_job
 from app.workers.backtest_worker import run_backtest_job
+from app.workers.ml_inference_worker import run_ml_inference_job
 from app.workers.news_worker import run_news_ingest
 
 # Rolling window the periodic sweep re-checks for gaps on each active instrument.
@@ -69,6 +70,7 @@ class WorkerSettings:
         run_backtest_job,
         on_candle_close_job,
         poll_equity_universe,
+        run_ml_inference_job,
     ]
     cron_jobs: list[CronJob] = [
         cron(run_news_ingest, minute=set(range(0, 60, 15)), run_at_startup=False),
