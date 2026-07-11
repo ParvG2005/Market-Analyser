@@ -32,12 +32,16 @@ async function fetchBacktest(id: string): Promise<BacktestResponse> {
 
 /**
  * TanStack Query wrapper over `GET /backtests/{id}`. Polls every 2s while the
- * backtest is still running, and stops once `status === "done"`.
+ * backtest is still running, and stops once it reaches a terminal state
+ * (`status === "done"` or `status === "failed"`).
  */
 export function useBacktest(id: string) {
   return useQuery({
     queryKey: ["backtest", id],
     queryFn: () => fetchBacktest(id),
-    refetchInterval: (query) => (query.state.data?.status === "done" ? false : 2000),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "done" || status === "failed" ? false : 2000;
+    },
   });
 }
