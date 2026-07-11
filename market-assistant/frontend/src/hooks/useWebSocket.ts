@@ -27,6 +27,12 @@ export function useWebSocket(
       setStatus("closed");
       return;
     }
+    // Callers pass "" when the auth token isn't available yet (e.g. signed
+    // out) — stay closed rather than opening a socket with no `?token=`.
+    if (!url) {
+      setStatus("closed");
+      return;
+    }
 
     let cancelled = false;
     let reconnectTimer: ReturnType<typeof setTimeout>;

@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 
+import { buildWsUrl } from "../lib/api";
+import type { ScanHit } from "../lib/scannerTypes";
+import { useAccessToken } from "./useAccessToken";
 import { useWebSocket } from "./useWebSocket";
-import { DEV_USER_ID, type ScanHit } from "../lib/scannerTypes";
 
 const WS_BASE = import.meta.env.VITE_WS_URL ?? "ws://localhost:8000";
 const MAX_HITS = 50;
@@ -9,8 +11,8 @@ const MAX_HITS = 50;
 /**
  * Subscribes to the live scanner-hits WebSocket and returns the most recent
  * hits (newest first, bounded to `MAX_HITS`, deduped by rule/instrument/ts).
- * The token is `DEV_USER_ID` so the feed receives hits produced by rules the
- * REST hook creates under that same dev user (real auth arrives in Phase 11).
+ * Carries the real Supabase access token as `?token=`; stays disconnected
+ * until a token is available (i.e. the user is signed in).
  */
 export function useScanHits(): ScanHit[] {
   const [hits, setHits] = useState<ScanHit[]>([]);
@@ -32,7 +34,9 @@ export function useScanHits(): ScanHit[] {
     [],
   );
 
-  useWebSocket(`${WS_BASE}/ws/scanner/hits?token=${DEV_USER_ID}`, { onMessage });
+  const token = useAccessToken();
+  const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/scanner/hits`, token) : "";
+  useWebSocket(wsUrl, { onMessage });
 
   return hits;
 }

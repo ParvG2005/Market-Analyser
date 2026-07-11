@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { presetAuth } from "./_auth-helper";
+
 // Full-stack acceptance: build the RSI(5m)<30 AND relVol>2 rule in the UI,
 // trigger the synthetic-candle replay over the test-only backend route, and
 // assert the rule/hit surfaces in the feed.
@@ -34,6 +36,7 @@ test("build RSI(5m)<30 AND relVol>2 rule, replay data, hit appears", async ({ pa
       `(tests/acceptance/test_scanner_acceptance.py) is the real phase gate.`
   );
 
+  await presetAuth(page);
   await page.goto("/scanner");
 
   await page.getByTestId("rule-name-input").fill("RSI(5m)<30 AND relVol>2");

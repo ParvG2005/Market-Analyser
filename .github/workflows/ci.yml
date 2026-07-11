@@ -74,6 +74,13 @@ jobs:
     defaults:
       run:
         working-directory: market-assistant/frontend
+    # Dummy Supabase env so `npm run build` (the e2e webServer) can inline
+    # import.meta.env.VITE_SUPABASE_* without the client throwing at load. Vite
+    # exposes VITE_-prefixed process env at build; e2e specs mock all network,
+    # so no real Supabase is contacted.
+    env:
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_ANON_KEY: test-anon-key
     steps:
       - uses: actions/checkout@v4
       - run: npm ci

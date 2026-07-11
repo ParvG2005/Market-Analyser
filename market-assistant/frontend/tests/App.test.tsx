@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
 import { createTestRouter } from "../src/router";
+import { useAuthStore } from "../src/stores/authStore";
 
 // The live Charts page mounts a chart + WebSocket; keep this smoke test
 // deterministic by stubbing the canvas library and network primitives.
@@ -32,6 +33,9 @@ class NoopWebSocket {
 beforeEach(() => {
   vi.stubGlobal("WebSocket", NoopWebSocket as unknown as typeof WebSocket);
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => [] }));
+  // These specs assert route-render smoke coverage behind the RequireAuth
+  // guard added in Phase 11 — sign in so the guard lets the routes through.
+  useAuthStore.setState({ isAuthenticated: true, user: { email: "a@b.com" } as never });
 });
 
 const ROUTES: Array<[string, string]> = [

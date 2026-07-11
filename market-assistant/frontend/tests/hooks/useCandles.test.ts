@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 
+vi.mock("../../src/lib/auth", () => ({
+  getAccessToken: vi.fn().mockResolvedValue("test-token"),
+}));
+
 import { useCandles } from "../../src/hooks/useCandles";
 
 class FakeWebSocket {
@@ -46,6 +50,7 @@ describe("useCandles", () => {
     );
 
     await waitFor(() => expect(result.current.candles).toHaveLength(2));
+    await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
 
     const socket = FakeWebSocket.instances[0];
     act(() => socket.triggerOpen());
@@ -74,6 +79,7 @@ describe("useCandles", () => {
       useCandles("BTC/USDT", "1m", "2024-01-01T00:00:00Z", "2024-01-01T01:00:00Z"),
     );
     await waitFor(() => expect(result.current.candles).toHaveLength(2));
+    await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
 
     const socket = FakeWebSocket.instances[0];
     const sendSpy = vi.spyOn(socket, "send");

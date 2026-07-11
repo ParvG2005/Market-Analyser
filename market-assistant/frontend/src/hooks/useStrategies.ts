@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { authedFetch } from "../lib/api";
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 /** JSON-schema fragment the backend emits for a preset's tunable params. */
@@ -64,13 +66,13 @@ export interface MiniBacktestInput {
 }
 
 async function fetchStrategies(): Promise<StrategyMeta[]> {
-  const res = await fetch(`${API_BASE}/api/strategies`);
+  const res = await authedFetch(`${API_BASE}/api/strategies`);
   if (!res.ok) throw new Error(`Failed to load strategies (${res.status})`);
   return res.json();
 }
 
 async function fetchStrategyConfigs(): Promise<StrategyConfig[]> {
-  const res = await fetch(`${API_BASE}/api/strategy-configs`);
+  const res = await authedFetch(`${API_BASE}/api/strategy-configs`);
   if (!res.ok) throw new Error(`Failed to load strategy configs (${res.status})`);
   return res.json();
 }
@@ -79,7 +81,7 @@ async function fetchStrategyConfigs(): Promise<StrategyConfig[]> {
  * repeat POST (e.g. toggling Off) flips the existing row instead of adding a
  * duplicate that would leave the strategy still enabled for the worker. */
 async function postStrategyConfig(input: StrategyConfigInput): Promise<unknown> {
-  const res = await fetch(`${API_BASE}/api/strategy-configs`, {
+  const res = await authedFetch(`${API_BASE}/api/strategy-configs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -95,7 +97,7 @@ export async function runMiniBacktest({
   slippage_bps = 5,
   ...rest
 }: MiniBacktestInput): Promise<MiniBacktestResult> {
-  const res = await fetch(`${API_BASE}/api/strategies/${name}/backtest`, {
+  const res = await authedFetch(`${API_BASE}/api/strategies/${name}/backtest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...rest, fees_bps, slippage_bps }),

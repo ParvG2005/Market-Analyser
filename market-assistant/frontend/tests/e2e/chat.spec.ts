@@ -1,11 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+import { presetAuth } from "./_auth-helper";
+
 const DISCLAIMER = "Educational analysis. Not investment advice. Past performance ≠ future results.";
 
 // The preview server serves the built frontend only (no backend), so the chat
 // API is mocked deterministically: a session, empty history, and a canned SSE
 // turn that reports a tool call then streams a grounded, disclaimered answer.
 test("ask a question and see tool activity + a disclaimered answer", async ({ page }) => {
+  await presetAuth(page);
   await page.route("**/api/chat/sessions", async (route) => {
     if (route.request().method() === "POST") {
       await route.fulfill({

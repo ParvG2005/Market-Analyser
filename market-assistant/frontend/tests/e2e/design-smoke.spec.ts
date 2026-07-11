@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { presetAuth } from "./_auth-helper";
+
 const DISCLAIMER_TEXT =
   "Educational analysis. Not investment advice. Past performance ≠ future results.";
 
@@ -34,6 +36,7 @@ async function presetTheme(page: Page, theme: (typeof THEMES)[number]) {
 for (const theme of THEMES) {
   for (const route of ROUTES) {
     test(`${route.name} renders shell + footer (${theme})`, async ({ page }) => {
+      await presetAuth(page);
       await presetTheme(page, theme);
       await page.goto(route.path);
 
@@ -48,6 +51,7 @@ for (const theme of THEMES) {
 
 for (const path of LIVE_ROUTES) {
   test(`live page ${path} renders shell + footer`, async ({ page }) => {
+    await presetAuth(page);
     await page.goto(path);
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
     await expect(page.getByText(DISCLAIMER_TEXT)).toBeVisible();

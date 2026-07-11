@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { authedFetch } from "../lib/api";
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 export interface BacktestStats {
@@ -23,7 +25,7 @@ export interface BacktestResponse {
 }
 
 async function fetchBacktest(id: string): Promise<BacktestResponse> {
-  const res = await fetch(`${API_BASE}/backtests/${id}`);
+  const res = await authedFetch(`${API_BASE}/backtests/${id}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch backtest ${id} (${res.status})`);
   }
