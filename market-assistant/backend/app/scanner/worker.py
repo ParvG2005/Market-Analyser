@@ -116,15 +116,18 @@ async def on_candle_close(
         if await is_duplicate_hit(redis, rule.id, instrument_id, tf, str(candle["ts"])):
             continue
 
-        db.add(
-            ScanHit(
-                rule_id=rule.id,
-                instrument_id=instrument_id,
-                ts=hit_ts,
-                payload=safe_payload,
-            )
+        hit = ScanHit(
+            rule_id=rule.id,
+            instrument_id=instrument_id,
+            ts=hit_ts,
+            payload=safe_payload,
         )
+        db.add(hit)
         await db.commit()
+        # expire_on_commit=False keeps the identity-mapped instance usable, but
+        # the DB-assigned PK may not be loaded until refreshed; ensure hit.id.
+        if hit.id is None:
+            await db.refresh(hit)
 
         await redis.publish(
             f"scan_hits:{rule.user_id}",
@@ -139,12 +142,33 @@ async def on_candle_close(
                 }
             ),
         )
+
+        # Fan out Telegram alerts only when a live arq pool is present in ctx.
+        # Scanner unit/integration tests pass ctx without a pool, so this stays
+        # a no-op there; the live worker (app/worker.py) injects "arq_pool".
+        pool = ctx.get("arq_pool")
+        if pool is not None:
+            await pool.enqueue_job("send_telegram_alert_job", hit.id)
+
         hits_written += 1
 
     return hits_written
 
 
-class WorkerSettings:
-    # Live arq wiring (redis_settings, on_startup db/redis into ctx) lands in a
-    # later phase; registering the function is enough for this task.
-    functions = [on_candle_close]
+async def scan_on_candle_close_job(
+    ctx: dict[str, Any], instrument_id: int, tf: str, candle: dict[str, Any]
+) -> int:
+    """Thin live arq entrypoint. arq calls functions as ``func(ctx, *args)``.
+
+    Opens a session from the live ``ctx["session_factory"]`` and adapts it to the
+    ``ctx["db"]`` contract ``on_candle_close`` expects (which commits internally,
+    so no outer commit is needed). Passes through the arq pool so hits fan out.
+    """
+    session_factory = ctx["session_factory"]
+    async with session_factory() as session:
+        sub_ctx: dict[str, Any] = {
+            "db": session,
+            "redis": ctx["redis"],
+            "arq_pool": ctx.get("arq_pool"),
+        }
+        return await on_candle_close(sub_ctx, instrument_id, tf, candle)

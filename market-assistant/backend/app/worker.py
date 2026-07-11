@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from arq import cron
+from arq import create_pool, cron
 from arq.connections import RedisSettings
 from arq.cron import CronJob
 from sqlalchemy import select
@@ -13,7 +13,9 @@ from app.core.deps import get_redis, get_sessionmaker
 from app.ingest.backfill import backfill_gaps
 from app.ingest.equity_poller import poll_equity_universe
 from app.models.instrument import Instrument
+from app.scanner.worker import scan_on_candle_close_job
 from app.strategies.worker import on_candle_close_job
+from app.workers.alert_worker import send_telegram_alert_job
 from app.workers.backtest_worker import run_backtest_job
 from app.workers.ml_inference_worker import run_ml_inference_job
 from app.workers.news_worker import run_news_ingest
@@ -47,6 +49,9 @@ async def on_startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
     ctx["session_factory"] = get_sessionmaker()
     ctx["redis"] = get_redis()
+    # Dedicated arq pool so jobs can enqueue follow-up jobs (e.g. the scanner
+    # fanning out Telegram alerts after each hit). Closed in on_shutdown.
+    ctx["arq_pool"] = await create_pool(RedisSettings.from_dsn(settings.redis_url))
     ctx["backfill_rate_limit_ms"] = settings.BACKFILL_RATE_LIMIT_MS
     # Import ccxt lazily so merely importing this module (e.g. in tests that
     # only inspect WorkerSettings) never pulls in the network client.
@@ -59,6 +64,9 @@ async def on_shutdown(ctx: dict[str, Any]) -> None:
     exchange = ctx.get("exchange")
     if exchange is not None:
         await exchange.close()
+    pool = ctx.get("arq_pool")
+    if pool is not None:
+        await pool.aclose()
 
 
 class WorkerSettings:
@@ -69,6 +77,8 @@ class WorkerSettings:
         backfill_gaps,
         run_backtest_job,
         on_candle_close_job,
+        scan_on_candle_close_job,
+        send_telegram_alert_job,
         poll_equity_universe,
         run_ml_inference_job,
     ]
