@@ -66,3 +66,11 @@ export async function updateInstrument(id: number, active: boolean): Promise<Ins
   const body: InstrumentApiShape = await res.json();
   return fromApi(body);
 }
+
+export async function seedNifty50(): Promise<InstrumentDto[]> {
+  const res = await fetch(`${API_BASE}/api/instruments/seed-nifty50`, {
+    method: "POST",
+  });
+  const body: InstrumentApiShape[] = await res.json();
+  return body.map(fromApi);
+}

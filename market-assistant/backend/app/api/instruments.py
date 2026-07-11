@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.deps import get_session
+from app.ingest.universe_equity import ensure_equity_instruments
 from app.models.instrument import Instrument
 from app.schemas.instrument import InstrumentIn, InstrumentOut, InstrumentPatch
 
@@ -50,6 +51,15 @@ async def create_instrument(
     await session.commit()
     await session.refresh(instrument)
     return _to_out(instrument)
+
+
+@router.post("/seed-nifty50", response_model=list[InstrumentOut], status_code=201)
+async def seed_nifty50(session: AsyncSession = Depends(get_session)) -> list[InstrumentOut]:
+    instruments = await ensure_equity_instruments(session)
+    await session.commit()
+    for instrument in instruments:
+        await session.refresh(instrument)
+    return [_to_out(i) for i in instruments]
 
 
 @router.patch("/{instrument_id}", response_model=InstrumentOut)

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createInstrument, getInstruments, updateInstrument } from "../lib/api";
+import { createInstrument, getInstruments, seedNifty50, updateInstrument } from "../lib/api";
 
 export function useInstruments(assetClass?: string) {
   const queryClient = useQueryClient();
@@ -20,5 +20,10 @@ export function useInstruments(assetClass?: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["instruments"] }),
   });
 
-  return { ...query, create, toggleActive };
+  const seedNifty50Preset = useMutation({
+    mutationFn: seedNifty50,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["instruments"] }),
+  });
+
+  return { ...query, create, toggleActive, seedNifty50: seedNifty50Preset };
 }
