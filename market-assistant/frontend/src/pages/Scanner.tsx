@@ -1,4 +1,3 @@
-import { Disclaimer } from "../components/Disclaimer";
 import { Panel } from "../components/common/Panel";
 import { HitsFeed } from "../components/scanner/HitsFeed";
 import { RuleBuilder } from "../components/scanner/RuleBuilder";
@@ -46,8 +45,6 @@ export function Scanner() {
           </Panel>
         </div>
       </div>
-
-      <Disclaimer />
     </>
   );
 }
