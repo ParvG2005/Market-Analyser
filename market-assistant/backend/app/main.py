@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.backtests import router as backtests_router
 from app.api.candles import router as candles_router
 from app.api.health import router as health_router
 from app.api.scanner import router as scanner_router
@@ -15,6 +16,7 @@ def create_app() -> FastAPI:
     app.include_router(ws_candles_router)
     app.include_router(ws_scanner_router)
     app.include_router(scanner_router)
+    app.include_router(backtests_router)
     # Test-only replay route; mounted solely under ENV=test, never in prod.
     if get_settings().env == "test":
         from app.api.test_routes import router as test_router

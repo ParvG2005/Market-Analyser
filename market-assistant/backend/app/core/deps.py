@@ -3,6 +3,8 @@ from functools import lru_cache
 from typing import cast
 
 import redis.asyncio as redis
+from arq import create_pool
+from arq.connections import ArqRedis, RedisSettings
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -44,3 +46,16 @@ def get_redis() -> redis.Redis:
         get_settings().redis_url, decode_responses=True
     )
     return cast(redis.Redis, client)
+
+
+async def get_arq_pool() -> AsyncIterator[ArqRedis]:
+    """FastAPI dependency yielding an arq redis pool for enqueuing jobs.
+
+    Integration tests override this with a fake pool so they do not depend on
+    a live arq worker / redis.
+    """
+    pool = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
+    try:
+        yield pool
+    finally:
+        await pool.aclose()
