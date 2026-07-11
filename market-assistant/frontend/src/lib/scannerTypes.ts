@@ -54,3 +54,10 @@ export const INDICATORS: Indicator[] = [
 export const TIMEFRAMES: Timeframe[] = ["1m", "5m", "15m", "1h", "1d"];
 
 export const OPERATORS: Operator[] = ["<", "<=", ">", ">=", "==", "!="];
+
+/**
+ * Dev-only user id used both for rule ownership (backend default) and the
+ * scanner-hits WebSocket token, so the feed receives the hits produced by
+ * rules created through the REST hook. Replaced by real auth in Phase 11.
+ */
+export const DEV_USER_ID = "00000000-0000-0000-0000-000000000001";

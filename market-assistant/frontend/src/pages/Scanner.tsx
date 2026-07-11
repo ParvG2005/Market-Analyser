@@ -1,13 +1,15 @@
 import { Disclaimer } from "../components/Disclaimer";
-import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
+import { HitsFeed } from "../components/scanner/HitsFeed";
 import { RuleBuilder } from "../components/scanner/RuleBuilder";
 import { RuleList } from "../components/scanner/RuleList";
+import { useScanHits } from "../hooks/useScanHits";
 import { useScanRules } from "../hooks/useScanRules";
 import type { RuleDefinition } from "../lib/scannerTypes";
 
 export function Scanner() {
   const { rules, isLoading, createRule, updateRule, deleteRule } = useScanRules();
+  const hits = useScanHits();
 
   const handleSubmit = (definition: RuleDefinition, name: string) => {
     if (!name.trim()) return;
@@ -39,13 +41,8 @@ export function Scanner() {
         </div>
 
         <div className="scanner-col">
-          <Panel title="Live hits" tag="last 30 min">
-            {/* Task 10 replaces this placeholder with the live HitsFeed. */}
-            <EmptyState
-              glyph="◔"
-              title="No hits yet"
-              message="Once rules are enabled, matching symbols stream into this feed in real time. Live hits land in the next step of Phase 4."
-            />
+          <Panel title="Live hits" tag={hits.length > 0 ? `${hits.length}` : "last 30 min"}>
+            <HitsFeed hits={hits} />
           </Panel>
         </div>
       </div>
