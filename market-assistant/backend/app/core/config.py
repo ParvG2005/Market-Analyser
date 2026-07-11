@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     WS_MAX_BACKOFF_S: float = 60.0
     BACKFILL_RATE_LIMIT_MS: int = 250
     NEWS_FEED_URLS: list[str] = []
+    EQUITY_POLL_INTERVAL_MIN: int = 15
+    EQUITY_DELAY_MINUTES: int = 15
+    NSE_TIMEZONE: str = "Asia/Kolkata"
 
 
 @lru_cache
