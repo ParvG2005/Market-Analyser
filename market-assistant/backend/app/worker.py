@@ -19,6 +19,7 @@ from app.workers.alert_worker import send_telegram_alert_job
 from app.workers.backtest_worker import run_backtest_job
 from app.workers.ml_inference_worker import run_ml_inference_job
 from app.workers.news_worker import run_news_ingest
+from app.workers.retention_worker import retention_job
 
 # Rolling window the periodic sweep re-checks for gaps on each active instrument.
 _BACKFILL_SWEEP_WINDOW = timedelta(hours=1)
@@ -81,11 +82,13 @@ class WorkerSettings:
         send_telegram_alert_job,
         poll_equity_universe,
         run_ml_inference_job,
+        retention_job,
     ]
     cron_jobs: list[CronJob] = [
         cron(run_news_ingest, minute=set(range(0, 60, 15)), run_at_startup=False),
         cron(trigger_backfill_sweep, minute={7, 37}),
         cron(poll_equity_universe, minute=set(range(0, 60, 15))),
+        cron(retention_job, hour=3, minute=0),
     ]
     on_startup = staticmethod(on_startup)
     on_shutdown = staticmethod(on_shutdown)
