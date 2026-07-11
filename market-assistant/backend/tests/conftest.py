@@ -179,6 +179,19 @@ async def redis_client():
         await client.ping()
     except Exception:
         pytest.skip("Redis not available")
+
+    # The suite shares this Redis instance across runs, but Postgres FK id
+    # sequences reset whenever the schema is recreated (see
+    # test_migrations.py), so a fresh rule_id/instrument_id combined with a
+    # fixed test candle ts can collide with a leftover
+    # scan_hit_dedup:{rule_id}:{instrument_id}:{tf}:{bar_ts} key from a
+    # previous run and wrongly suppress a hit. Clear only the scanner dedup
+    # keyspace (never flushdb - other tests/data may share this instance) so
+    # every run starts hermetic.
+    keys = [k async for k in client.scan_iter(match="scan_hit_dedup:*")]
+    if keys:
+        await client.delete(*keys)
+
     yield client
 
 
