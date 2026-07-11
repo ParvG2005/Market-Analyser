@@ -1,6 +1,15 @@
 from functools import lru_cache
 
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Provider -> the settings field holding its API key. A prod deploy must supply
+# the key for whichever LLM_PROVIDER is configured (see the prod guard below).
+_PROVIDER_KEY_FIELD = {
+    "groq": "GROQ_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+}
 
 
 class Settings(BaseSettings):
@@ -47,9 +56,42 @@ class Settings(BaseSettings):
     # --- DB schema isolation (Supabase multi-project). "public" => unchanged local/CI behavior ---
     db_schema: str = "public"
 
+    # --- Phase 12: free-tier survival knobs (required-with-explicit-default) ---
+    max_universe_size: int = Field(default=25, ge=1)       # hard crypto universe cap
+    candle_retention_days: int = Field(default=60, ge=1)   # 1m-candle retention window
+    llm_daily_quota: int = Field(default=500, ge=1)        # global daily LLM call budget
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
+    @model_validator(mode="after")
+    def _fail_fast_in_prod(self) -> "Settings":
+        """Fail-fast config guard (Phase 12 Task 1).
+
+        Outside prod the localhost/empty defaults are intentional (local dev, CI).
+        In prod, a missing critical secret must crash app construction with a
+        readable, field-named error rather than binding a port on stub config.
+        """
+        if self.env != "prod":
+            return self
+
+        errors: list[str] = []
+        if "localhost" in self.database_url or "127.0.0.1" in self.database_url:
+            errors.append("database_url points at localhost — set the managed Postgres URL")
+        if not self.jwt_secret and not self.supabase_jwks_url:
+            errors.append("jwt_secret (or supabase_jwks_url) is required for auth")
+        key_field = _PROVIDER_KEY_FIELD.get(self.LLM_PROVIDER.lower())
+        if key_field is None:
+            errors.append(f"LLM_PROVIDER {self.LLM_PROVIDER!r} is not a known provider")
+        elif not getattr(self, key_field):
+            errors.append(f"{key_field} is required for LLM_PROVIDER={self.LLM_PROVIDER}")
+        if not self.telegram_bot_token:
+            errors.append("telegram_bot_token is required for alert delivery")
+
+        if errors:
+            raise ValueError("invalid prod configuration: " + "; ".join(errors))
+        return self
 
 
 @lru_cache
