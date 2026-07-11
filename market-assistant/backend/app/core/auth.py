@@ -8,6 +8,11 @@ from app.core.security import verify_token
 
 DEV_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
+# Fail-closed allowlist: the X-Dev-User / raw-UUID convenience path is enabled
+# ONLY for these exact env values. Any unrecognized value (e.g. "production",
+# "Prod", "") defaults to the prod reject path.
+_NON_PROD_ENVS = {"dev", "test"}
+
 
 async def get_current_user_id(
     authorization: str | None = Header(default=None),
@@ -23,7 +28,7 @@ async def get_current_user_id(
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token") from exc
     # 2) Non-prod dev/test convenience: honor X-Dev-User, else the fixed dev user.
     #    (Preserves existing test behavior; NEVER active in prod.)
-    if settings.env != "prod":
+    if settings.env in _NON_PROD_ENVS:
         return x_dev_user if x_dev_user is not None else DEV_USER_ID
     # 3) Prod with no/invalid bearer -> reject.
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
@@ -35,7 +40,7 @@ async def get_current_user_id_from_ws_token(token: str) -> uuid.UUID:
         return verify_token(token, settings).id
     except (HTTPException, ValidationError):
         # Non-prod fallback: legacy test path treats the token as a raw user UUID.
-        if settings.env != "prod":
+        if settings.env in _NON_PROD_ENVS:
             try:
                 return uuid.UUID(token)
             except ValueError:
