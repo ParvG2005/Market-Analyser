@@ -4,6 +4,7 @@ presets. Each preset gets one case here; later Phase-6 tasks append theirs.
 
 import math
 
+import app.strategies.breakout_retest  # noqa: F401 -- registers "breakout_retest"
 import app.strategies.ema_vwap_trend  # noqa: F401 -- registers "ema_vwap_trend"
 import app.strategies.orb  # noqa: F401 -- registers "orb" with the strategy registry
 import app.strategies.vwap_revert  # noqa: F401 -- registers "vwap_revert"
@@ -54,6 +55,21 @@ def test_vwap_revert_backtest_smoke() -> None:
         strat.default_params(),
         fees_bps=10,
         slippage_bps=5,
+    )
+    assert math.isfinite(result.stats["sharpe"])
+    assert result.stats["trade_count"] > 0
+
+
+def test_breakout_retest_backtest_smoke() -> None:
+    strat = get_strategy("breakout_retest")
+    candles = load_fixture_candles("btc_15m_3mo")
+    result = run_signal_backtest(
+        strat,
+        candles,
+        strat.default_params(),
+        fees_bps=10,
+        slippage_bps=5,
+        window=60,
     )
     assert math.isfinite(result.stats["sharpe"])
     assert result.stats["trade_count"] > 0
