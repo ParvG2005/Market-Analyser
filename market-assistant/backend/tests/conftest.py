@@ -217,6 +217,43 @@ async def sample_instrument(db_session):
 
 
 @pytest.fixture
+async def seeded_instrument(db_session):
+    # Committed (savepoint released) so the API's own session — bound to the
+    # same shared connection via the `client` override — can read it.
+    instrument = Instrument(
+        symbol="ETH/USDT", asset_class="crypto", exchange="binance", active=True
+    )
+    db_session.add(instrument)
+    await db_session.commit()
+    return instrument
+
+
+@pytest.fixture
+async def seeded_signal(db_session):
+    from app.models.signal import Signal
+
+    instrument = Instrument(
+        symbol="SOL/USDT", asset_class="crypto", exchange="binance", active=True
+    )
+    db_session.add(instrument)
+    await db_session.flush()
+    signal = Signal(
+        instrument_id=instrument.id,
+        strategy="orb",
+        direction="long",
+        ts=datetime(2024, 6, 1, 12, 0, tzinfo=UTC),
+        confidence=0.7,
+        ref_entry=100.0,
+        ref_sl=99.0,
+        ref_tp=102.0,
+        meta={"note": "seed"},
+    )
+    db_session.add(signal)
+    await db_session.commit()
+    return signal
+
+
+@pytest.fixture
 async def seed_btc_1m_candles(db_session):
     instrument = Instrument(
         symbol="BTC/USDT", asset_class="crypto", exchange="binance", active=True
