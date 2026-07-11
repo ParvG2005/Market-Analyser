@@ -12,5 +12,17 @@ from app.models.instrument import Instrument  # noqa: E402
 from app.models.news_item import NewsItem  # noqa: E402
 from app.models.scan_hit import ScanHit  # noqa: E402
 from app.models.scan_rule import ScanRule  # noqa: E402
+from app.models.signal import Signal  # noqa: E402
+from app.models.strategy_config import StrategyConfig  # noqa: E402
 
-__all__ = ["Backtest", "Base", "CandleRow", "Instrument", "NewsItem", "ScanHit", "ScanRule"]
+__all__ = [
+    "Backtest",
+    "Base",
+    "CandleRow",
+    "Instrument",
+    "NewsItem",
+    "ScanHit",
+    "ScanRule",
+    "Signal",
+    "StrategyConfig",
+]
