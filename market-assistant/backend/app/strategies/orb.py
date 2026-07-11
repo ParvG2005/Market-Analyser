@@ -14,16 +14,8 @@ import pandas as pd
 
 from app.scanner.indicators import rel_volume
 from app.strategies.base import SignalCandidate
-from app.strategies.levels import rr_target
+from app.strategies.levels import candle_ts, rr_target
 from app.strategies.registry import register
-
-
-def _bar_ts(candles: pd.DataFrame, i: int) -> pd.Timestamp:
-    """Per-bar timestamp: prefer a `ts` column (unit-test fixtures), else the
-    DataFrame's DatetimeIndex (backtest fixtures/bridge)."""
-    if "ts" in candles.columns:
-        return pd.Timestamp(candles["ts"].iloc[i])
-    return pd.Timestamp(candles.index[i])
 
 
 class ORBStrategy:
@@ -70,7 +62,7 @@ class ORBStrategy:
                 entry = float(bar["c"])
                 signals.append(
                     SignalCandidate(
-                        ts=_bar_ts(candles, i),
+                        ts=candle_ts(candles, i),
                         direction="long",
                         ref_entry=entry,
                         ref_sl=or_low,
@@ -83,7 +75,7 @@ class ORBStrategy:
                 entry = float(bar["c"])
                 signals.append(
                     SignalCandidate(
-                        ts=_bar_ts(candles, i),
+                        ts=candle_ts(candles, i),
                         direction="short",
                         ref_entry=entry,
                         ref_sl=or_high,

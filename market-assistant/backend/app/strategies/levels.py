@@ -16,6 +16,14 @@ def rr_target(entry: float, stop: float, direction: str, rr: float) -> float:
     return entry + risk * rr if direction == "long" else entry - risk * rr
 
 
+def candle_ts(candles: pd.DataFrame, i: int) -> pd.Timestamp:
+    """Per-bar timestamp: prefer a `ts` column (unit-test fixtures), else the
+    DataFrame's DatetimeIndex (backtest fixtures/bridge)."""
+    if "ts" in candles.columns:
+        return pd.Timestamp(candles["ts"].iloc[i])
+    return pd.Timestamp(candles.index[i])
+
+
 def swing_low(candles: pd.DataFrame, lookback: int) -> float:
     """Lowest low over the trailing `lookback` bars."""
     return float(candles["l"].iloc[-lookback:].min())
