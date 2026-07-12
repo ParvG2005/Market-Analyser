@@ -103,8 +103,10 @@ class Settings(BaseSettings):
             errors.append(f"LLM_PROVIDER {self.LLM_PROVIDER!r} is not a known provider")
         elif not getattr(self, key_field):
             errors.append(f"{key_field} is required for LLM_PROVIDER={self.LLM_PROVIDER}")
-        if not self.telegram_bot_token:
-            errors.append("telegram_bot_token is required for alert delivery")
+        # telegram_bot_token is intentionally NOT boot-critical: alert delivery is
+        # an optional feature. Without it the alert worker simply doesn't push to
+        # Telegram; the rest of the app runs. Requiring it here would take the
+        # whole deploy down for a non-essential channel.
 
         if errors:
             raise ValueError("invalid prod configuration: " + "; ".join(errors))

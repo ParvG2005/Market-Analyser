@@ -42,6 +42,10 @@ def test_prod_raises_when_database_url_is_localhost_default():
 def test_prod_raises_when_jwt_secret_empty_and_no_jwks():
     env = VALID_PROD.copy()
     env["jwt_secret"] = ""
+    # Pin the JWKS sources empty so an ambient .env SUPABASE_URL can't derive a
+    # JWKS and satisfy the auth requirement — this test is about neither existing.
+    env["supabase_url"] = ""
+    env["supabase_jwks_url"] = ""
     with pytest.raises(ValidationError) as exc:
         Settings(**env)
     assert "jwt" in str(exc.value).lower()
@@ -55,12 +59,14 @@ def test_prod_raises_when_no_llm_key_for_provider():
     assert "llm" in str(exc.value).lower() or "key" in str(exc.value).lower()
 
 
-def test_prod_raises_when_telegram_token_empty():
+def test_prod_succeeds_without_telegram_token():
+    # Alert delivery is optional: a missing telegram_bot_token must NOT block a
+    # prod boot. The alert worker degrades (no Telegram push); the app runs.
     env = VALID_PROD.copy()
     env["telegram_bot_token"] = ""
-    with pytest.raises(ValidationError) as exc:
-        Settings(**env)
-    assert "telegram" in str(exc.value).lower()
+    s = Settings(**env)
+    assert s.env == "prod"
+    assert s.telegram_bot_token == ""
 
 
 def test_prod_succeeds_with_full_valid_environment():

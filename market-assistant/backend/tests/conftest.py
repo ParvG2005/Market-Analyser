@@ -16,6 +16,16 @@ os.environ.setdefault(
 # time. setdefault respects an explicit ENV export but gives CI/local a test env.
 os.environ.setdefault("ENV", "test")
 
+# Full hermeticity: ignore the developer-local .env FILE entirely during tests
+# so local runs match CI (which has no .env). The setdefault guards above only
+# help vars the .env sets; a test that delenv's a secret (e.g. test_startup_
+# failure) would still see the .env FILE re-supply it. Disabling the env_file
+# source at the class level closes that gap for every Settings construction.
+import app.core.config as _config  # noqa: E402
+
+_config.Settings.model_config["env_file"] = None
+_config.get_settings.cache_clear()
+
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
