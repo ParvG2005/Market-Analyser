@@ -24,8 +24,9 @@ async def check_rate_limit(
     try:
         redis = get_redis()
         count = await redis.incr(key)
-        if count == 1:
-            await redis.expire(key, window_seconds)
+        # H6: EXPIRE NX on every call keeps the window fixed and self-heals a
+        # counter left TTL-less by a crash between INCR and EXPIRE.
+        await redis.expire(key, window_seconds, nx=True)
     except Exception:
         return True
     return bool(count <= limit)
