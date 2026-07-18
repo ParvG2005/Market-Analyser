@@ -36,6 +36,12 @@ async def ws_candles(websocket: WebSocket, token: str = Query(...)) -> None:
             channel = msg.get("subscribe")
             if not channel:
                 continue
+            # C3: only `candles:*` channels are public per-symbol feeds. Reject
+            # any other prefix (e.g. another user's `scan_hits:<uuid>`) so an
+            # authed client can never subscribe its way into private data.
+            if not channel.startswith("candles:"):
+                await websocket.close(code=1008)
+                break
             if forward_task is not None:
                 forward_task.cancel()
                 await pubsub.unsubscribe()
