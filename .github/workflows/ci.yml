@@ -47,11 +47,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e ".[dev]"
-      - run: ruff check .
-      - run: mypy app
-      - run: alembic upgrade head
-      - run: pytest -v
+      # Install from the committed uv.lock (--frozen) so CI tests the exact
+      # versions prod ships, and neither floats onto a new major.
+      - run: pip install --no-cache-dir uv
+      - run: uv sync --frozen --extra dev
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen mypy app
+      - run: uv run --frozen alembic upgrade head
+      - run: uv run --frozen pytest -v
 
   frontend:
     runs-on: ubuntu-latest

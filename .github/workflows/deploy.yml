@@ -151,6 +151,8 @@ jobs:
         with:
           python-version: "3.12"
       - if: env.STAGING_URL != ''
-        run: pip install -e ".[dev]"
+        run: pip install --no-cache-dir uv
       - if: env.STAGING_URL != ''
-        run: pytest -m smoke -v
+        run: uv sync --frozen --extra dev
+      - if: env.STAGING_URL != ''
+        run: uv run --frozen pytest -m smoke -v
