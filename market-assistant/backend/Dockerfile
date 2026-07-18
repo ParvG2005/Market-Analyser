@@ -8,9 +8,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libpq-dev libgomp1 curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install deps first (better layer caching). setuptools packages.find resolves `app`.
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir uv && uv pip install --system --no-cache .
+# Install deps first (better layer caching). Pin to the committed uv.lock via
+# `uv export --frozen` so the image is reproducible and never floats onto a new
+# major between builds. The app package itself runs from WORKDIR /app (COPYed
+# below), so only its locked dependencies are installed here.
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv \
+    && uv export --frozen --no-dev --no-emit-project -o requirements.txt \
+    && uv pip install --system --no-cache -r requirements.txt
 
 COPY app ./app
 COPY alembic ./alembic
