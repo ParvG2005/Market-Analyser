@@ -53,21 +53,16 @@ async def run_chat_turn(
 
         provider = get_provider()
 
-    # Free-tier survival: block a turn (without calling the provider) once the
-    # global daily LLM budget is exhausted. Opt-in — callers that pass no guard
+    # Free-tier survival: the global daily LLM budget is consumed per PROVIDER
+    # ROUND (each provider.stream call), not once per turn — a turn can make up
+    # to MAX_TOOL_ROUNDS calls plus a full regeneration, so counting once
+    # under-reported real spend by up to ~10x. Opt-in: callers that pass no guard
     # (e.g. unit tests with a scripted provider) are unaffected.
+    provider_name = ""
     if quota_guard is not None:
         from app.core.config import get_settings
 
-        if not await quota_guard.check_and_increment(get_settings().LLM_PROVIDER):
-            db.add(ChatMessage(session_id=session_id, role="user", content=user_message))
-            db.add(
-                ChatMessage(
-                    session_id=session_id, role="assistant", content=QUOTA_FALLBACK_MESSAGE
-                )
-            )
-            await db.commit()
-            return ChatTurnResult(answer=QUOTA_FALLBACK_MESSAGE)
+        provider_name = get_settings().LLM_PROVIDER
 
     base_messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -75,14 +70,30 @@ async def run_chat_turn(
     ]
     db.add(ChatMessage(session_id=session_id, role="user", content=user_message))
 
-    answer, tool_events = await _run_rounds(provider, list(base_messages), db, session_id)
+    answer, tool_events, quota_blocked = await _run_rounds(
+        provider, list(base_messages), db, session_id, quota_guard, provider_name
+    )
+
+    # Budget exhausted before the model produced any answer -> quota fallback.
+    if quota_blocked and not answer.strip():
+        db.add(
+            ChatMessage(session_id=session_id, role="assistant", content=QUOTA_FALLBACK_MESSAGE)
+        )
+        await db.commit()
+        return ChatTurnResult(answer=QUOTA_FALLBACK_MESSAGE, tool_events=tool_events)
 
     regenerated = False
     if not check_grounding(answer, tool_events).grounded:
-        answer2, events2 = await _run_rounds(provider, list(base_messages), db, session_id)
-        tool_events += events2
-        regenerated = True
-        answer = answer2 if check_grounding(answer2, tool_events).grounded else FALLBACK_MESSAGE
+        # Only regenerate if the budget can still afford another pass.
+        if quota_blocked:
+            answer = FALLBACK_MESSAGE
+        else:
+            answer2, events2, _ = await _run_rounds(
+                provider, list(base_messages), db, session_id, quota_guard, provider_name
+            )
+            tool_events += events2
+            regenerated = True
+            answer = answer2 if check_grounding(answer2, tool_events).grounded else FALLBACK_MESSAGE
 
     if answer != FALLBACK_MESSAGE and not check_advice_language(answer).ok:
         answer = FALLBACK_MESSAGE
@@ -97,10 +108,18 @@ async def _run_rounds(
     messages: list[dict[str, Any]],
     db: AsyncSession,
     session_id: str,
-) -> tuple[str, list[ToolResult]]:
+    quota_guard: LlmQuotaGuard | None = None,
+    provider_name: str = "",
+) -> tuple[str, list[ToolResult], bool]:
     tool_events: list[ToolResult] = []
     text_parts: list[str] = []
+    quota_blocked = False
     for _round in range(MAX_TOOL_ROUNDS):
+        # Consume one unit of the daily budget per provider round. When exhausted,
+        # stop generating further rounds (the caller decides fallback vs. keep).
+        if quota_guard is not None and not await quota_guard.check_and_increment(provider_name):
+            quota_blocked = True
+            break
         round_text: list[str] = []
         round_calls: list[tuple[Any, ToolResult]] = []
         async for chunk in provider.stream(messages, TOOL_SCHEMAS):
@@ -162,4 +181,4 @@ async def _run_rounds(
                     "content": str(result.data if result.ok else result.error),
                 }
             )
-    return "".join(text_parts), tool_events
+    return "".join(text_parts), tool_events, quota_blocked
