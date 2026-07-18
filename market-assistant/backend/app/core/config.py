@@ -98,6 +98,10 @@ class Settings(BaseSettings):
             errors.append(
                 "jwt_secret (or supabase_jwks_url / supabase_url) is required for auth"
             )
+        if not self.jwt_issuer:
+            errors.append(
+                "jwt_issuer is required in prod so the token issuer (iss) is validated"
+            )
         key_field = _PROVIDER_KEY_FIELD.get(self.LLM_PROVIDER.lower())
         if key_field is None:
             errors.append(f"LLM_PROVIDER {self.LLM_PROVIDER!r} is not a known provider")

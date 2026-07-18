@@ -18,6 +18,7 @@ VALID_PROD = {
     "database_url": "postgresql+asyncpg://u:p@db.example.com:5432/market",
     "redis_url": "rediss://default:token@host.upstash.io:6379/0",
     "jwt_secret": "a-real-32-char-minimum-secret-value!!",
+    "jwt_issuer": "https://ref.supabase.co/auth/v1",
     "LLM_PROVIDER": "groq",
     "GROQ_API_KEY": "gsk_realkey",
     "telegram_bot_token": "123:abc",
@@ -57,6 +58,16 @@ def test_prod_raises_when_no_llm_key_for_provider():
     with pytest.raises(ValidationError) as exc:
         Settings(**env)
     assert "llm" in str(exc.value).lower() or "key" in str(exc.value).lower()
+
+
+def test_prod_raises_when_jwt_issuer_empty():
+    # 1.3: with jwt_issuer unset the JWT `iss` claim is never checked, so a token
+    # from any issuer that shares the key/JWKS is accepted. Prod must require it.
+    env = VALID_PROD.copy()
+    env["jwt_issuer"] = ""
+    with pytest.raises(ValidationError) as exc:
+        Settings(**env)
+    assert "jwt_issuer" in str(exc.value).lower() or "iss" in str(exc.value).lower()
 
 
 def test_prod_succeeds_without_telegram_token():
