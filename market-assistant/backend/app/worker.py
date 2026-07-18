@@ -1,5 +1,6 @@
 # worker.py = the arq entrypoint (WorkerSettings + lifecycle hooks).
 # app/workers/ = the job implementations (e.g. news_worker.run_news_ingest).
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -8,7 +9,7 @@ from arq.connections import RedisSettings
 from arq.cron import CronJob
 from sqlalchemy import select
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.deps import get_redis, get_sessionmaker
 from app.ingest.backfill import backfill_gaps
 from app.ingest.equity_poller import poll_equity_universe
@@ -21,9 +22,22 @@ from app.workers.ml_inference_worker import run_ml_inference_job
 from app.workers.news_worker import run_news_ingest
 from app.workers.retention_worker import retention_job
 
+logger = logging.getLogger(__name__)
+
 # Rolling window the periodic sweep re-checks for gaps on each active instrument.
 _BACKFILL_SWEEP_WINDOW = timedelta(hours=1)
 _BACKFILL_SWEEP_TF = "1m"
+
+
+def warn_if_telegram_unconfigured(settings: Settings) -> None:
+    """telegram_bot_token is intentionally optional in prod (config fail-fast does
+    not require it), so surface a loud startup warning when it is unset instead of
+    silently dropping every alert."""
+    if not settings.telegram_bot_token:
+        logger.warning(
+            "telegram_bot_token is not set — Telegram alert delivery is disabled; "
+            "set it to enable scanner alert fan-out"
+        )
 
 
 async def trigger_backfill_sweep(ctx: dict[str, Any]) -> int:
@@ -48,6 +62,7 @@ async def trigger_backfill_sweep(ctx: dict[str, Any]) -> int:
 
 async def on_startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
+    warn_if_telegram_unconfigured(settings)
     ctx["session_factory"] = get_sessionmaker()
     ctx["redis"] = get_redis()
     # Dedicated arq pool so jobs can enqueue follow-up jobs (e.g. the scanner

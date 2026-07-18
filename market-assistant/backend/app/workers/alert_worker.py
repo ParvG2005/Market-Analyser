@@ -9,6 +9,7 @@ Sends are per-user fixed-window rate-limited; a user over their limit is skipped
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sqlalchemy import select
@@ -21,6 +22,13 @@ from app.models.alert_subscription import AlertSubscription
 from app.models.instrument import Instrument
 from app.models.scan_hit import ScanHit
 from app.models.scan_rule import ScanRule
+
+logger = logging.getLogger(__name__)
+
+# A per-(hit, subscriber) delivery marker so an arq retry of the whole job does
+# not re-send to subscribers already delivered. Set only AFTER a confirmed ok
+# send, so a failed send leaves no marker and the retry can try again.
+_DELIVERY_MARK_TTL_SECONDS = 60 * 60 * 24
 
 
 async def send_telegram_alert_job(ctx: dict[str, Any], hit_id: int) -> int:
@@ -43,6 +51,10 @@ async def send_telegram_alert_job(ctx: dict[str, Any], hit_id: int) -> int:
         rule = await session.get(ScanRule, hit.rule_id)
         instrument = await session.get(Instrument, hit.instrument_id)
         if rule is None or instrument is None:
+            return 0
+        # Re-check enabled at send time: the user may have disabled the rule
+        # between the hit insert and this (possibly retried/delayed) job.
+        if not rule.enabled:
             return 0
 
         subs = (
@@ -71,6 +83,10 @@ async def send_telegram_alert_job(ctx: dict[str, Any], hit_id: int) -> int:
 
     sent = 0
     for sub in subs:
+        # Skip a subscriber already delivered in a prior run of this job.
+        delivery_key = f"alert_sent:{hit_id}:{sub.id}"
+        if await redis.exists(delivery_key):
+            continue
         try:
             await enforce_rate_limit(
                 redis,
@@ -80,7 +96,25 @@ async def send_telegram_alert_job(ctx: dict[str, Any], hit_id: int) -> int:
             )
         except RateLimitExceeded:
             continue
-        await send_telegram_message(settings.telegram_bot_token, sub.target, text)
+        # Per-subscriber isolation: one send raising must not abort the fan-out.
+        try:
+            result = await send_telegram_message(
+                settings.telegram_bot_token, sub.target, text
+            )
+        except Exception:
+            logger.warning(
+                "telegram send raised for sub %s (hit %s); continuing", sub.id, hit_id,
+                exc_info=True,
+            )
+            continue
+        if not result.ok:
+            logger.warning(
+                "telegram send not ok for sub %s (hit %s): %s %s",
+                sub.id, hit_id, result.status_code, result.description,
+            )
+            continue
+        # Mark delivered only after a confirmed ok send.
+        await redis.set(delivery_key, "1", ex=_DELIVERY_MARK_TTL_SECONDS)
         sent += 1
 
     return sent
