@@ -51,7 +51,10 @@ test("build RSI(5m)<30 AND relVol>2 rule, replay data, hit appears", async ({ pa
   await page.getByTestId("row-1-value").fill("2");
   await page.getByTestId("save-rule").click();
 
-  await expect(page.getByText("RSI(5m)<30 AND relVol>2")).toBeVisible();
+  // .first(): the desktop and mobile projects run this spec in parallel against
+  // the same backend, so the rule list can hold more than one identically-named
+  // rule — assert the saved rule surfaced, not that it is unique.
+  await expect(page.getByText("RSI(5m)<30 AND relVol>2").first()).toBeVisible();
 
   await page.request.post(`${API_BASE}/test/replay-synthetic-candles`, {
     data: { scenario: "rsi_dip_with_volume_spike", instrument_id: 1, tf: "5m" },
