@@ -34,7 +34,9 @@ async def _load_closes(
 async def correlation(
     asset_class: str = Query(...),
     tf: str = "1h",
-    limit: int = 200,
+    # Bounded: need >=2 closes per instrument for pct_change; cap matches the
+    # seasonality read ceiling so one caller can't request unbounded rows.
+    limit: int = Query(200, ge=2, le=5000),
     session: AsyncSession = Depends(get_session),
 ) -> CorrelationMatrix:
     query = (

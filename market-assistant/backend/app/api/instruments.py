@@ -1,9 +1,11 @@
+import uuid
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_user_id
 from app.core.config import get_settings
 from app.core.deps import get_session
 from app.ingest.universe_equity import ensure_equity_instruments
@@ -41,7 +43,9 @@ async def list_instruments(
 
 @router.post("", response_model=InstrumentOut, status_code=201)
 async def create_instrument(
-    payload: InstrumentIn, session: AsyncSession = Depends(get_session)
+    payload: InstrumentIn,
+    session: AsyncSession = Depends(get_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> InstrumentOut:
     instrument = Instrument(
         symbol=payload.symbol,
@@ -56,7 +60,10 @@ async def create_instrument(
 
 
 @router.post("/seed-nifty50", response_model=list[InstrumentOut], status_code=201)
-async def seed_nifty50(session: AsyncSession = Depends(get_session)) -> list[InstrumentOut]:
+async def seed_nifty50(
+    session: AsyncSession = Depends(get_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+) -> list[InstrumentOut]:
     instruments = await ensure_equity_instruments(session)
     await session.commit()
     for instrument in instruments:
@@ -69,6 +76,7 @@ async def patch_instrument(
     instrument_id: int,
     payload: InstrumentPatch,
     session: AsyncSession = Depends(get_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> InstrumentOut:
     instrument = await session.get(Instrument, instrument_id)
     if instrument is None:
