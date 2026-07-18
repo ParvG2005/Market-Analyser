@@ -165,6 +165,7 @@ async def mini_backtest(
     strategy_name: str,
     body: MiniBacktestRequest,
     session: AsyncSession = Depends(get_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> MiniBacktestResponse:
     """Synchronous, HONEST mini-backtest for the frontend win-rate cards.
 

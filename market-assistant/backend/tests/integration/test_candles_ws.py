@@ -67,3 +67,15 @@ def test_ws_rejects_invalid_token():
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect("/ws/candles?token=not-a-valid-token"):
                 pass
+
+
+def test_ws_rejects_foreign_channel_subscribe(redis_sync_client):
+    # C3: the /ws/candles route may only subscribe to `candles:*`. A subscribe to
+    # another user's private `scan_hits:<uuid>` (or any non-candles channel) must
+    # be rejected — else any authed client could tap another user's scan feed.
+    other_user = uuid.uuid4()
+    with TestClient(create_app()) as client:
+        with client.websocket_connect(CANDLES_URL) as ws:
+            ws.send_json({"subscribe": f"scan_hits:{other_user}"})
+            with pytest.raises(WebSocketDisconnect):
+                ws.receive_text()

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.backtest import BacktestCreateRequest, BacktestResponse
+from app.core.auth import get_current_user_id
 from app.core.deps import get_arq_pool, get_session
 from app.models.backtest import Backtest
 
@@ -16,6 +17,7 @@ async def create_backtest(
     request: BacktestCreateRequest,
     session: AsyncSession = Depends(get_session),
     arq_pool: ArqRedis = Depends(get_arq_pool),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> BacktestResponse:
     bt = Backtest(
         id=uuid.uuid4(),
