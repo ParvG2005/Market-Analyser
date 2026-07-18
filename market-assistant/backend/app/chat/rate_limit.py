@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 async def check_rate_limit(
@@ -12,7 +16,8 @@ async def check_rate_limit(
 ) -> bool:
     """Return True if the user is under the cap, False if they've exceeded it.
 
-    Fail-open: if Redis is unreachable, allow the request rather than block chat.
+    Fail-closed: this limiter guards the (paid, finite) LLM budget, so if Redis
+    is unreachable we DENY rather than allow unbounded, un-metered chat.
     """
     from app.core.deps import get_redis
 
@@ -28,5 +33,6 @@ async def check_rate_limit(
         # counter left TTL-less by a crash between INCR and EXPIRE.
         await redis.expire(key, window_seconds, nx=True)
     except Exception:
-        return True
+        logger.warning("chat rate-limit Redis error; failing closed", exc_info=True)
+        return False
     return bool(count <= limit)
