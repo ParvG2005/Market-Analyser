@@ -34,6 +34,8 @@ class LlmQuotaGuard:
     async def check_and_increment(self, provider: str) -> bool:
         key = self._key(provider)
         count = int(await self._redis.incr(key))
-        if count == 1:
-            await self._redis.expire(key, _TTL_SECONDS)
+        # H6: EXPIRE NX on every call rather than only when count == 1 — a crash
+        # between INCR and EXPIRE would otherwise leave the daily counter with no
+        # TTL so it never rolls over. NX keeps the once-set TTL and self-heals.
+        await self._redis.expire(key, _TTL_SECONDS, nx=True)
         return count <= self._daily_quota
