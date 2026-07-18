@@ -13,7 +13,7 @@ class FakeRedis:
         self.store[key] = self.store.get(key, 0) + 1
         return self.store[key]
 
-    async def expire(self, key: str, seconds: int) -> None:
+    async def expire(self, key: str, seconds: int, nx: bool = False) -> None:
         pass
 
 
