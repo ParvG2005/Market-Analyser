@@ -20,9 +20,22 @@ def dedup_key(rule_id: int, instrument_id: int, tf: str, bar_ts: str) -> str:
     return f"scan_hit_dedup:{rule_id}:{instrument_id}:{tf}:{bar_ts}"
 
 
-async def is_duplicate_hit(
+async def hit_already_claimed(
     redis: Redis, rule_id: int, instrument_id: int, tf: str, bar_ts: str
 ) -> bool:
+    """Read-only fast-path check: has this bar's hit already been written?
+
+    The authoritative dedup is the DB UNIQUE(rule_id, instrument_id, ts); this
+    only lets the worker skip re-evaluation cheaply. It must NOT claim the key —
+    claiming before the row is committed would suppress a genuine retry if that
+    commit later failed. See ``claim_hit``, called only after a durable commit.
+    """
+    return bool(await redis.exists(dedup_key(rule_id, instrument_id, tf, bar_ts)))
+
+
+async def claim_hit(
+    redis: Redis, rule_id: int, instrument_id: int, tf: str, bar_ts: str
+) -> None:
+    """Set the fast-path key AFTER the hit row is durably committed."""
     key = dedup_key(rule_id, instrument_id, tf, bar_ts)
-    was_set = await redis.set(key, "1", nx=True, ex=DEDUP_TTL_SECONDS)
-    return not was_set
+    await redis.set(key, "1", nx=True, ex=DEDUP_TTL_SECONDS)

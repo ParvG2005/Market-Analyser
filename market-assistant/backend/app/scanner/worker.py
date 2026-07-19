@@ -5,29 +5,32 @@ instrument's recent history (read via the SAME session as ``ctx["db"]`` so it
 sees seeded/committed rows), computes an indicator snapshot including the new
 bar, then evaluates every enabled ``ScanRule``. Rules that fire persist a
 ``ScanHit`` row and publish a JSON event to ``scan_hits:{user_id}`` for the
-websocket fan-out. A Redis SET-NX dedup guard makes replay of the same
-rule/instrument/timeframe/bar a no-op.
+websocket fan-out. Dedup is authoritative via the DB
+UNIQUE(rule_id, instrument_id, ts); a Redis SET-NX key is a best-effort
+fast path claimed only after a durable commit.
 
-Key-format bridge: the Task-4 cache emits period-suffixed keys ("rsi:14"),
-while the Task-5 evaluator looks up bare indicator names ("rsi"). The worker
-strips the suffix before evaluating.
+Indicators are keyed by period-suffixed names ("rsi:14", "vwap") end to end:
+the cache emits them, the evaluator looks them up via ``Condition.key``, and
+the worker requests each rule's keys per timeframe — so a custom period is
+honored and cross-tf legs resolve.
 """
 
 from __future__ import annotations
 
 import json
 import math
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.ingest.nse_calendar import is_in_session
 from app.models.instrument import Instrument
 from app.models.scan_hit import ScanHit
 from app.models.scan_rule import ScanRule
 from app.scanner.cache import WARM_START_BARS, CandleLike, IndicatorCache, LoadHistory
-from app.scanner.dedup import is_duplicate_hit
+from app.scanner.dedup import claim_hit, hit_already_claimed
 from app.scanner.dsl import parse_rule_definition
 from app.scanner.evaluator import compile_rule
 from app.scanner.history import load_recent_candles
@@ -61,6 +64,11 @@ class _CandleView:
         self.v = float(candle["v"])
 
 
+def _as_utc(value: datetime) -> datetime:
+    """Normalize a datetime to tz-aware UTC for cross-source equality."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
 def _json_safe(snapshot: dict[str, float]) -> dict[str, float | None]:
     # Postgres JSONB rejects NaN, and NaN is not valid JSON: map NaN -> None so
     # both the persisted payload and the published event serialize cleanly.
@@ -92,49 +100,98 @@ async def on_candle_close(
         if not is_in_session(bar_ts):
             return 0
 
-    # Warm-start async, then hand the sync cache a closure over the loaded rows.
-    history = await load_recent_candles(db, instrument_id, tf, WARM_START_BARS)
-    cache = IndicatorCache(
-        load_history=cast(LoadHistory, lambda *_: history),
-        requested_indicators=REQUESTED,
-    )
-    inst = cache.get_or_create(instrument_id, tf)
-    snapshot = inst.update(cast(CandleLike, _CandleView(candle)))
-    bare = {k.split(":")[0]: v for k, v in snapshot.items()}
-    snapshot_by_tf = {tf: bare}
-
-    safe_payload = _json_safe(snapshot)
     hit_ts = datetime.fromisoformat(str(candle["ts"]).replace("Z", "+00:00"))
 
+    # Compile every enabled rule once, then request — PER TIMEFRAME — the union of
+    # each rule's period-suffixed keys, so a custom period (rsi:5) is honored
+    # instead of collapsing to the default. The closing tf also gets the base
+    # REQUESTED set so the stored payload is a stable, informative snapshot.
+    compiled_rules = [
+        (rule, compile_rule(parse_rule_definition(rule.definition))) for rule in enabled_rules
+    ]
+    requested_by_tf: dict[str, list[str]] = {tf: list(REQUESTED)}
+    for _, compiled in compiled_rules:
+        for key, key_tf in compiled.required_indicators():
+            keys = requested_by_tf.setdefault(key_tf, [])
+            if key not in keys:
+                keys.append(key)
+
+    # Warm-start the closing tf from the loaded rows.
+    history = await load_recent_candles(db, instrument_id, tf, WARM_START_BARS)
+
+    # Build a snapshot for EVERY tf the rules reference (not just the closing tf),
+    # so cross-tf `all` legs can resolve. A referenced tf with no history yields
+    # an empty snapshot -> its conditions evaluate False (never raises).
+    snapshot_by_tf: dict[str, dict[str, float]] = {}
+    for cur_tf, keys in requested_by_tf.items():
+        rows = history if cur_tf == tf else await load_recent_candles(
+            db, instrument_id, cur_tf, WARM_START_BARS
+        )
+        if not rows:
+            snapshot_by_tf[cur_tf] = {}
+            continue
+        inst = IndicatorCache(
+            load_history=cast(LoadHistory, lambda *_, r=rows: r),
+            requested_indicators=keys,
+        ).get_or_create(instrument_id, cur_tf)
+        if cur_tf == tf and _as_utc(rows[-1].ts) != hit_ts:
+            # Closing tf, replay/backfill path: the candle is not yet persisted,
+            # so append it (else it is already the last row -> recompute as-is,
+            # avoiding a doubled last bar).
+            snapshot_by_tf[cur_tf] = inst.update(cast(CandleLike, _CandleView(candle)))
+        else:
+            snapshot_by_tf[cur_tf] = inst.recompute_from_history()
+
+    safe_payload = _json_safe(snapshot_by_tf.get(tf, {}))
+
+    bar_ts_str = str(candle["ts"])
     hits_written = 0
-    for rule in enabled_rules:
-        compiled = compile_rule(parse_rule_definition(rule.definition))
+    for rule, compiled in compiled_rules:
         if not any(t == tf for _, t in compiled.required_indicators()):
             continue
         if not compiled.evaluate(snapshot_by_tf):
             continue
-        if await is_duplicate_hit(redis, rule.id, instrument_id, tf, str(candle["ts"])):
+        # Capture rule fields up front: a rollback (benign-dup path) expires the
+        # ORM instance, and re-reading rule.id afterwards would trigger lazy IO
+        # outside the async greenlet.
+        rule_id, rule_user_id, rule_name = rule.id, rule.user_id, rule.name
+
+        # Fast path: skip re-eval if this bar's hit was already written. This is
+        # a best-effort cache — the DB UNIQUE(rule_id, instrument_id, ts) is the
+        # authoritative dedup below.
+        if await hit_already_claimed(redis, rule_id, instrument_id, tf, bar_ts_str):
             continue
 
         hit = ScanHit(
-            rule_id=rule.id,
+            rule_id=rule_id,
             instrument_id=instrument_id,
             ts=hit_ts,
             payload=safe_payload,
         )
         db.add(hit)
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            # A concurrent worker / replay already wrote this exact hit: benign
+            # duplicate. Roll back and move on (claim the fast-path key so future
+            # replays short-circuit before touching the DB).
+            await db.rollback()
+            await claim_hit(redis, rule_id, instrument_id, tf, bar_ts_str)
+            continue
+        # Claim the Redis fast-path key only AFTER the row is durably committed,
+        # so a failed commit never suppresses a genuine retry.
+        await claim_hit(redis, rule_id, instrument_id, tf, bar_ts_str)
         # expire_on_commit=False keeps the identity-mapped instance usable, but
         # the DB-assigned PK may not be loaded until refreshed; ensure hit.id.
         if hit.id is None:
             await db.refresh(hit)
 
         await redis.publish(
-            f"scan_hits:{rule.user_id}",
+            f"scan_hits:{rule_user_id}",
             json.dumps(
                 {
-                    "rule_id": rule.id,
-                    "rule_name": rule.name,
+                    "rule_id": rule_id,
+                    "rule_name": rule_name,
                     "instrument_id": instrument_id,
                     "tf": tf,
                     "ts": candle["ts"],

@@ -72,6 +72,17 @@ class InstrumentTfCache:
         self._last_snapshot = self._recompute()
         return self._last_snapshot
 
+    def recompute_from_history(self) -> dict[str, float]:
+        """Warm-start (if needed) and compute the snapshot over the loaded rows
+        as-is — the last row IS the just-closed bar. Use this when the closing
+        candle is already persisted in history (the live path commits before
+        dispatch); appending it again via ``update`` would double the last bar.
+        """
+        if not self._warmed:
+            self._warm_start()
+        self._last_snapshot = self._recompute()
+        return self._last_snapshot
+
     def snapshot(self) -> dict[str, float]:
         return self._last_snapshot
 
