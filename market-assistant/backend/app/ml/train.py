@@ -109,18 +109,34 @@ def train_model(
     raw_oof = oof_raw[oof_idx]
     y_oof = y[oof_idx]
 
+    # Artifact calibrator: fit on the FULL OOF set (best calibration to serve).
     if len(set(raw_oof.tolist())) > 1:
         calibrator = fit_calibrator(raw_oof, y_oof)
-        calibrated_oof = apply_calibrator(calibrator, raw_oof)
     else:
         # Degenerate case (constant raw output across the OOF set): isotonic
         # regression on a single unique x is undefined-in-spirit (it would
         # just return mean(y)), so fall back to the raw constant directly.
         calibrator = None
-        calibrated_oof = raw_oof
+
+    # Gate calibrator: fit on the EARLIER OOF bars and gate on the later,
+    # unseen bars. Fitting an isotonic calibrator and then evaluating the gate
+    # on that SAME OOF set lets it overfit noise and flatter the model
+    # (in-sample optimism); a held-out fold keeps the gate honest.
+    split = len(oof_idx) // 2
+    cal_idx = oof_idx[:split]
+    eval_idx = oof_idx[split:] if split else oof_idx
+    if split == 0:
+        cal_idx = oof_idx
+    raw_cal, y_cal = oof_raw[cal_idx], y[cal_idx]
+    raw_eval = oof_raw[eval_idx]
+    if len(set(raw_cal.tolist())) > 1:
+        gate_calibrator = fit_calibrator(raw_cal, y_cal)
+        gated_eval = apply_calibrator(gate_calibrator, raw_eval)
+    else:
+        gated_eval = raw_eval
 
     entries_mask_full = np.zeros(n, dtype=bool)
-    entries_mask_full[oof_idx] = calibrated_oof >= threshold
+    entries_mask_full[eval_idx] = gated_eval >= threshold
 
     model_net_return = simulate_directional_returns(
         close_aligned,
@@ -130,14 +146,15 @@ def train_model(
         slippage_bps=slippage_bps,
     )
 
-    oof_candles = (
-        candles.reindex(joined.index).iloc[oof_idx[0] : oof_idx[-1] + 1]
-        if len(oof_idx)
+    # Baselines over the SAME held-out window and SAME horizon as the model.
+    eval_candles = (
+        candles.reindex(joined.index).iloc[eval_idx[0] : eval_idx[-1] + 1]
+        if len(eval_idx)
         else candles.iloc[:1]
     )
-    buy_hold = buy_and_hold_return(oof_candles, fees_bps=fees_bps, slippage_bps=slippage_bps)
+    buy_hold = buy_and_hold_return(eval_candles, fees_bps=fees_bps, slippage_bps=slippage_bps)
     random_return = random_baseline_return(
-        oof_candles, fees_bps=fees_bps, slippage_bps=slippage_bps
+        eval_candles, fees_bps=fees_bps, slippage_bps=slippage_bps, horizon=horizon
     )
 
     published = passes_baseline_gate(model_net_return, buy_hold, random_return)
