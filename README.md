@@ -94,8 +94,24 @@ gate → upload backend to the HF Space + `vercel deploy --prod` → post-deploy
    See `backend/README.md`.
 3. **Vercel** — `cd frontend && vercel link`; set `VITE_API_URL`/`VITE_WS_URL`
    (HF Space URL) + `VITE_SUPABASE_*` for Production and Preview scopes.
-4. **GitHub Actions secrets** — `HF_TOKEN`, `HF_SPACE_ID`, `VERCEL_TOKEN`,
+4. **GitHub Actions secrets** (repo → *Settings → Secrets and variables → Actions*) —
+   `HF_TOKEN`, `HF_SPACE_ID`, `VERCEL_TOKEN`,
    `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `STAGING_URL`, `STAGING_WS_URL`, `STAGING_FRONTEND_URL`.
+
+   > **Deploys are gated on these secrets — until they are set, the deploy jobs
+   > _skip and report green_, so a merge to `main` looks successful but ships
+   > nothing.** Each job in `deploy.yml` is guarded by an `if: env.<SECRET> == ''`
+   > skip-notice (e.g. `deploy-frontend` needs `VERCEL_TOKEN`; `deploy-backend`
+   > needs `HF_TOKEN`/`HF_SPACE_ID`; `smoke` needs `STAGING_URL`). Check a run's
+   > logs for `… not set — skipping …` to confirm whether a deploy actually ran.
+   >
+   > `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` are **not secret** — they live in
+   > `frontend/.vercel/project.json` after `vercel link` (`orgId` / `projectId`).
+   > `VERCEL_TOKEN` is created at *Vercel → Account Settings → Tokens*.
+   >
+   > Vercel's own Git integration is intentionally **off**
+   > (`vercel.json → git.deploymentEnabled: false`) so production ships only via
+   > this CI pipeline (`vercel deploy --prebuilt --prod`), never a double deploy.
 
 ## Status
 
