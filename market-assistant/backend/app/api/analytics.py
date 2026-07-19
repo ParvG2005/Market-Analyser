@@ -79,4 +79,7 @@ async def seasonality(
     if len(closes) < 2:
         raise HTTPException(status_code=404, detail="not enough candle data")
 
-    return compute_seasonality(closes, bucket=bucket)
+    # NSE equities trade on IST; crypto is a 24/7 UTC convention. Hour-of-day
+    # seasonality must bucket in the exchange-local tz.
+    tz = "Asia/Kolkata" if instrument.asset_class == "equity" else "UTC"
+    return compute_seasonality(closes, bucket=bucket, tz=tz)

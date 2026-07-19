@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { CandleChart } from "../components/chart/CandleChart";
 import { IndicatorOverlays, type OverlayToggles } from "../components/chart/IndicatorOverlays";
@@ -21,8 +22,16 @@ function fmt(n: number): string {
 }
 
 export function ChartsPage() {
-  const [symbol, setSymbol] = useState("BTC/USDT");
+  const [searchParams] = useSearchParams();
+  const [symbol, setSymbol] = useState(searchParams.get("symbol") ?? "BTC/USDT");
   const [tf, setTf] = useState("1m");
+
+  // Follow the global symbol search (AppShell) — it navigates here with a
+  // ?symbol= param even when this page is already mounted.
+  const symbolParam = searchParams.get("symbol");
+  useEffect(() => {
+    if (symbolParam) setSymbol(symbolParam);
+  }, [symbolParam]);
   const [overlays, setOverlays] = useState<OverlayToggles>({
     ema: true,
     vwap: false,

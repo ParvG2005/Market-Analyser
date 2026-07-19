@@ -16,12 +16,14 @@ export function SeasonalityHeatmap({ data }: { data: SeasonalityVM }) {
   return (
     <div className="seasonality-heatmap" data-testid="seasonality-heatmap">
       {data.labels.map((label, i) => {
-        const ret = data.avg_return[i];
+        // Guard ragged/short arrays: a label without a paired value reads as 0.
+        const ret = data.avg_return[i] ?? 0;
+        const n = data.count[i] ?? 0;
         return (
           <div
             key={label}
             className="seasonality-cell"
-            title={`${label}: ${(ret * 100).toFixed(2)}% (n=${data.count[i]})`}
+            title={`${label}: ${(ret * 100).toFixed(2)}% (n=${n})`}
             style={{ background: heatColor(ret) }}
           >
             <span className="seasonality-label">{label}</span>

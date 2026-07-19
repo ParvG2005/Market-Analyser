@@ -34,11 +34,28 @@ export function AppShell() {
   const signOut = useAuthStore((s) => s.signOut);
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const closeDrawer = () => setDrawerOpen(false);
 
+  const submitSearch = () => {
+    const symbol = search.trim();
+    if (!symbol) return;
+    setSearch("");
+    setDrawerOpen(false);
+    navigate(`/charts?symbol=${encodeURIComponent(symbol.toUpperCase())}`);
+  };
+
   const handleLogout = async () => {
-    await signOut();
+    setLogoutError(null);
+    try {
+      await signOut();
+    } catch {
+      // Surface the failure and stay put — navigate only on a clean sign-out.
+      setLogoutError("Couldn't sign out. Please try again.");
+      return;
+    }
     navigate("/login");
   };
 
@@ -105,6 +122,11 @@ export function AppShell() {
             >
               Log out
             </button>
+            {logoutError && (
+              <div role="alert" style={{ color: "var(--ink)", fontSize: "10px", marginTop: "2px" }}>
+                {logoutError}
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -128,7 +150,16 @@ export function AppShell() {
           >
             ☰
           </button>
-          <input className="search" placeholder="Search symbol — BTC-USD, AAPL…" aria-label="Search symbol" />
+          <input
+            className="search"
+            placeholder="Search symbol — BTC-USD, AAPL…"
+            aria-label="Search symbol"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitSearch();
+            }}
+          />
           <Badge>◷ Equities 15-min delayed</Badge>
           <button
             type="button"

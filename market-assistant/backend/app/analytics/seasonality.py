@@ -29,7 +29,9 @@ class Seasonality(TypedDict):
     count: list[int]
 
 
-def compute_seasonality(candles: pd.DataFrame, bucket: Bucket) -> Seasonality:
+def compute_seasonality(
+    candles: pd.DataFrame, bucket: Bucket, tz: str = "UTC"
+) -> Seasonality:
     if bucket == "dow":
         labels = _DOW_LABELS
     elif bucket == "month":
@@ -48,7 +50,11 @@ def compute_seasonality(candles: pd.DataFrame, bucket: Bucket) -> Seasonality:
     elif bucket == "month":
         keys = ts.month - 1
     else:
-        keys = ts.hour
+        # Hour-of-day is only meaningful in the exchange-local timezone: a UTC
+        # hour bucket smears an NSE session across the wrong hours. Localize
+        # naive timestamps to UTC first, then convert to the exchange tz.
+        local = ts if ts.tz is not None else ts.tz_localize("UTC")
+        keys = local.tz_convert(tz).hour
 
     frame = pd.DataFrame({"key": keys, "ret": ret.to_numpy()}).dropna(subset=["ret"])
     grouped_mean = frame.groupby("key")["ret"].mean()
