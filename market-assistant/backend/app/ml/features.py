@@ -40,10 +40,22 @@ def build_features(candles: pd.DataFrame, regime: pd.Series | None = None) -> pd
 
     vol_mean = volume.rolling(VOLUME_Z_WINDOW).mean()
     vol_std = volume.rolling(VOLUME_Z_WINDOW).std()
-    features["volume_z"] = (volume - vol_mean) / vol_std
+    volume_z = (volume - vol_mean) / vol_std
+    # Flat-volume window: std == 0 -> 0/0 = NaN. The bar is valid (no volume
+    # anomaly), so treat the z-score as 0 rather than letting dropna() discard
+    # it — which could drop the just-closed bar and break serve-time iloc[-1].
+    # (vol_std is NaN during warm-up, where `== 0` is False, so warm-up rows
+    # stay NaN and are correctly dropped.)
+    features["volume_z"] = volume_z.mask(vol_std == 0, 0.0)
 
-    vwap = (typical_price * volume).rolling(VWAP_WINDOW).sum() / volume.rolling(VWAP_WINDOW).sum()
-    features["vwap_dist"] = (close - vwap) / vwap
+    vol_sum = volume.rolling(VWAP_WINDOW).sum()
+    vwap = (typical_price * volume).rolling(VWAP_WINDOW).sum() / vol_sum
+    vwap_dist = (close - vwap) / vwap
+    # All-zero-volume window: vwap is undefined (0/0) or the ratio divides by a
+    # zero vwap -> inf. Treat distance-from-VWAP as 0 rather than dropping the
+    # bar. Warm-up (vol_sum NaN) stays NaN and is dropped as before.
+    vwap_dist = vwap_dist.replace([float("inf"), float("-inf")], 0.0)
+    features["vwap_dist"] = vwap_dist.mask(vol_sum == 0, 0.0)
 
     if regime is not None:
         aligned = regime.reindex(candles.index)

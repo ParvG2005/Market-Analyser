@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from app.backtest.leakage import assert_no_leakage
+from app.backtest.leakage import assert_no_cross_fold_leakage, assert_no_leakage
 from app.ml.baseline import buy_and_hold_return, passes_baseline_gate, random_baseline_return
 from app.ml.calibration import apply_calibrator, fit_calibrator
 from app.ml.evaluate import simulate_directional_returns
@@ -75,12 +75,27 @@ def train_model(
 
     X = joined[FEATURE_COLUMNS].reset_index(drop=True)
     y = joined["y"].reset_index(drop=True).to_numpy()
-    close_aligned = candles["c"].reindex(joined.index).to_numpy()
+    # Map each kept (filtered) row back to its position in the FULL candle
+    # series, so trade exits step `horizon` real bars ahead (matching the label
+    # horizon) rather than `horizon` rows in the gap-collapsed filtered set.
+    orig_pos = candles.index.get_indexer(joined.index)
+    full_close = candles["c"].to_numpy()
+
+    # The purged gap between train and test must cover the full label horizon:
+    # the last training row's label looks `horizon` bars ahead, so a smaller
+    # purge lets that label overlap the test window (leakage).
+    if purge < horizon:
+        raise ValueError(
+            f"purge ({purge}) must be >= horizon ({horizon}) so a training "
+            "label cannot reach into the test window"
+        )
 
     n = len(X)
     splits = purged_walk_forward_splits(
         n_samples=n, n_splits=n_splits, test_size=test_size, purge=purge
     )
+    # Defense in depth: verify no fold's training labels overlap its test window.
+    assert_no_cross_fold_leakage(joined["feature_ts"], joined["label_ts"], splits)
 
     fold_metrics: list[dict[str, Any]] = []
     oof_raw = np.full(n, np.nan)
@@ -135,11 +150,15 @@ def train_model(
     else:
         gated_eval = raw_eval
 
-    entries_mask_full = np.zeros(n, dtype=bool)
-    entries_mask_full[eval_idx] = gated_eval >= threshold
+    # Project the gated entries onto the full candle series by ts so the
+    # simulator exits `horizon` real bars later (not horizon filtered rows).
+    entered_filtered = np.zeros(n, dtype=bool)
+    entered_filtered[eval_idx] = gated_eval >= threshold
+    entries_mask_full = np.zeros(len(full_close), dtype=bool)
+    entries_mask_full[orig_pos[entered_filtered]] = True
 
     model_net_return = simulate_directional_returns(
-        close_aligned,
+        full_close,
         entries_mask_full,
         horizon=horizon,
         fees_bps=fees_bps,
