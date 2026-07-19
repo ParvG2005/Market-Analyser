@@ -48,7 +48,8 @@ export function Strategies() {
         params,
       });
       patch(name, { result, pending: false });
-    } catch {
+    } catch (err) {
+      console.error("mini-backtest failed", err);
       patch(name, {
         pending: false,
         error: "Mini-backtest failed. Is the backend running, and is there candle history?",
