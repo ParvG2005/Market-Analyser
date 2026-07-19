@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from redis.asyncio.client import PubSub
@@ -43,7 +44,12 @@ async def ws_candles(websocket: WebSocket, token: str = Query(...)) -> None:
                 await websocket.close(code=1008)
                 break
             if forward_task is not None:
+                # Await the cancelled forwarder before reusing the pubsub, else
+                # the old _forward can still be mid-listen() on the same pubsub
+                # when we unsubscribe/resubscribe -> two readers racing on it.
                 forward_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await forward_task
                 await pubsub.unsubscribe()
             await pubsub.subscribe(channel)
             forward_task = asyncio.create_task(_forward(pubsub, websocket))
@@ -52,4 +58,6 @@ async def ws_candles(websocket: WebSocket, token: str = Query(...)) -> None:
     finally:
         if forward_task is not None:
             forward_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await forward_task
         await pubsub.aclose()  # type: ignore[no-untyped-call]
