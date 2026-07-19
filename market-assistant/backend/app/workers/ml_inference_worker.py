@@ -2,6 +2,7 @@ import uuid
 from typing import Any
 
 import pandas as pd
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ml.features import build_features
 from app.ml.inference import predict_prob_up, should_emit_signal
@@ -15,7 +16,25 @@ from app.scanner.dedup import DEDUP_TTL_SECONDS
 async def run_ml_inference_job(
     ctx: dict[str, Any], ml_model_id: str, instrument_id: int, candles_window: pd.DataFrame
 ) -> None:
-    db_session = ctx["db_session"]
+    """arq entrypoint. The live worker ctx exposes ``session_factory``; narrow
+    inference tests pass a ready ``db_session``. Resolve whichever is present so
+    the same registered job serves both."""
+    session = ctx.get("db_session")
+    if session is not None:
+        await _infer(ctx, session, ml_model_id, instrument_id, candles_window)
+        return
+    session_factory = ctx["session_factory"]
+    async with session_factory() as session:
+        await _infer(ctx, session, ml_model_id, instrument_id, candles_window)
+
+
+async def _infer(
+    ctx: dict[str, Any],
+    db_session: AsyncSession,
+    ml_model_id: str,
+    instrument_id: int,
+    candles_window: pd.DataFrame,
+) -> None:
     ml_model = await db_session.get(MLModel, uuid.UUID(ml_model_id))
     if ml_model is None or not ml_model.published:
         return
