@@ -9,6 +9,7 @@ from app.ml.registry import load_artifact
 from app.ml.train import FEATURE_COLUMNS
 from app.models.ml_model import MLModel
 from app.models.signal import Signal
+from app.scanner.dedup import DEDUP_TTL_SECONDS
 
 
 async def run_ml_inference_job(
@@ -32,6 +33,19 @@ async def run_ml_inference_job(
     threshold = (ml_model.metrics or {}).get("threshold", 0.55)
     if not should_emit_signal(ml_model.published, prob_up, threshold):
         return
+
+    # Idempotency: the live pipeline re-enqueues candle-close jobs (re-flushed
+    # candles, worker retries), so claim a per-(model, instrument, bar) key
+    # before inserting. A failed claim means this bar already emitted -> skip.
+    # redis is absent in the unit ctx used by narrow inference tests, in which
+    # case dedup is a no-op (those tests run each bar exactly once).
+    redis = ctx.get("redis")
+    if redis is not None:
+        bar_ts_iso = features.index[-1].isoformat()
+        dedup_key = f"signal_dedup:ml:{ml_model.id}:{instrument_id}:{bar_ts_iso}"
+        claimed = await redis.set(dedup_key, "1", nx=True, ex=DEDUP_TTL_SECONDS)
+        if not claimed:
+            return
 
     signal = Signal(
         instrument_id=instrument_id,
