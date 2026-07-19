@@ -1,15 +1,39 @@
+import { useEffect, useRef, useState } from "react";
+
 import { Badge } from "../components/common/Badge";
 import { Panel } from "../components/common/Panel";
 import { StatCard } from "../components/common/StatCard";
 import { EmbeddedMiniChat } from "../components/home/EmbeddedMiniChat";
 import { NewsPanel } from "../components/news/NewsPanel";
+import { createSession } from "../lib/api";
 import { useNews } from "../hooks/useNews";
 
 const VOL_HEAT = ["up", "up", "down", "up", "down", "down", "up", "up", "up"] as const;
-const HOME_CHAT_SESSION = "home-embedded";
 
 export function Home() {
   const { data: news } = useNews();
+
+  // The embedded chat needs a REAL persisted session: the backend types
+  // session_id as uuid.UUID and 404s the turn endpoint for an unknown session,
+  // so the old literal "home-embedded" made every desk-chat turn fail. Create
+  // one session per mount, guarded against StrictMode's double-invoke.
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null);
+  const createdRef = useRef(false);
+  useEffect(() => {
+    if (createdRef.current) return;
+    createdRef.current = true;
+    let cancelled = false;
+    createSession()
+      .then((s) => {
+        if (!cancelled) setChatSessionId(s.id);
+      })
+      .catch(() => {
+        /* leave chat disabled if session creation fails */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div data-testid="home-dashboard">
@@ -130,7 +154,11 @@ export function Home() {
           </Panel>
 
           <Panel title="Ask the desk" tag="beta">
-            <EmbeddedMiniChat sessionId={HOME_CHAT_SESSION} />
+            {chatSessionId ? (
+              <EmbeddedMiniChat sessionId={chatSessionId} />
+            ) : (
+              <p className="page-sub">Starting a session…</p>
+            )}
           </Panel>
         </div>
       </div>
