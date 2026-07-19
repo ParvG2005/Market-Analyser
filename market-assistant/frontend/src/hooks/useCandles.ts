@@ -86,15 +86,14 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
   );
 
   const token = useAccessToken();
-  // Fold the channel into the URL as a fragment: a symbol/tf change alters the
-  // URL, which tears down the old socket (dropping the previous server
-  // subscription) and opens a fresh one — so in-flight frames from the old
-  // channel can never leak into the reset series. The fragment is stripped by
-  // the WebSocket handshake, so the server URL is unchanged.
-  const wsUrl = token
-    ? `${buildWsUrl(`${WS_BASE}/ws/candles`, token)}#candles:${symbol}:${tf}`
-    : "";
-  const { send, status } = useWebSocket(wsUrl, { onMessage });
+  const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/candles`, token) : "";
+  // reconnectKey tears the socket down and reopens it on a symbol/tf change, so
+  // the previous server subscription is dropped and in-flight frames from the
+  // old channel can't leak into the reset series.
+  const { send, status } = useWebSocket(wsUrl, {
+    onMessage,
+    reconnectKey: `candles:${symbol}:${tf}`,
+  });
 
   useEffect(() => {
     if (status === "open") {

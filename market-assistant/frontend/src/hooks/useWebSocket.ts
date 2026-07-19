@@ -6,6 +6,13 @@ export interface UseWebSocketOptions {
   onMessage: (data: string) => void;
   reconnectDelayMs?: number;
   maxReconnectDelayMs?: number;
+  /**
+   * Opaque identity for the subscription (e.g. `candles:BTC/USDT:1m`). When it
+   * changes the socket is torn down and reopened, so a symbol/tf switch drops
+   * the previous server subscription and starts fresh — no stale-channel leak.
+   * Kept off the URL because browsers reject fragments in WebSocket URLs.
+   */
+  reconnectKey?: string;
 }
 
 /**
@@ -19,7 +26,12 @@ export interface UseWebSocketOptions {
  */
 export function useWebSocket(
   url: string,
-  { onMessage, reconnectDelayMs = 1000, maxReconnectDelayMs = 30000 }: UseWebSocketOptions,
+  {
+    onMessage,
+    reconnectDelayMs = 1000,
+    maxReconnectDelayMs = 30000,
+    reconnectKey,
+  }: UseWebSocketOptions,
 ) {
   const [status, setStatus] = useState<WebSocketStatus>("connecting");
   const wsRef = useRef<WebSocket | null>(null);
@@ -73,7 +85,7 @@ export function useWebSocket(
       clearTimeout(reconnectTimer);
       wsRef.current?.close();
     };
-  }, [url, reconnectDelayMs, maxReconnectDelayMs]);
+  }, [url, reconnectDelayMs, maxReconnectDelayMs, reconnectKey]);
 
   const send = useCallback((data: unknown) => {
     wsRef.current?.send(JSON.stringify(data));

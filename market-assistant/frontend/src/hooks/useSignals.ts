@@ -67,13 +67,13 @@ export function useSignals(
   );
 
   const token = useAccessToken();
-  // Fragment folds the channel into the URL so a symbol/tf change rebuilds the
-  // socket (fresh server subscription) instead of leaking the old feed's
-  // signals. Stripped by the WS handshake — the server URL is unchanged.
-  const wsUrl = token
-    ? `${buildWsUrl(`${WS_BASE}/ws/signals`, token)}#signals:${symbol}:${tf}`
-    : "";
-  const { send, status } = useWebSocket(wsUrl, { onMessage });
+  const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/signals`, token) : "";
+  // reconnectKey rebuilds the socket on a symbol/tf change (fresh server
+  // subscription) instead of leaking the previous feed's signals.
+  const { send, status } = useWebSocket(wsUrl, {
+    onMessage,
+    reconnectKey: `signals:${symbol}:${tf}`,
+  });
 
   useEffect(() => {
     if (status === "open") {

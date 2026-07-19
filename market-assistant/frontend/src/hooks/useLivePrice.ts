@@ -72,11 +72,13 @@ export function useLivePrice(symbol: string): LivePrice {
   };
 
   const token = useAccessToken();
-  // Fragment folds the channel into the URL so a symbol change rebuilds the
-  // socket, dropping the previous symbol's subscription. Stripped by the WS
-  // handshake — the server URL is unchanged.
-  const wsUrl = token ? `${buildWsUrl(`${WS_BASE}/ws/candles`, token)}#candles:${symbol}:1m` : "";
-  const { status, send } = useWebSocket(wsUrl, { onMessage });
+  const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/candles`, token) : "";
+  // reconnectKey rebuilds the socket on a symbol change, dropping the previous
+  // symbol's subscription.
+  const { status, send } = useWebSocket(wsUrl, {
+    onMessage,
+    reconnectKey: `candles:${symbol}:1m`,
+  });
 
   useEffect(() => {
     if (status === "open") send({ subscribe: `candles:${symbol}:1m` });
