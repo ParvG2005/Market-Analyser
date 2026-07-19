@@ -120,6 +120,31 @@ export async function seedNifty50(): Promise<InstrumentDto[]> {
   return body.map(fromApi);
 }
 
+export interface SignalDto {
+  id: number;
+  instrument_id: number | null;
+  strategy: string;
+  direction: string;
+  ts: string;
+  confidence: number | null;
+  ref_entry: number | null;
+  ref_sl: number | null;
+  ref_tp: number | null;
+  backtest_ref: string | null;
+  meta: Record<string, unknown> | null;
+}
+
+export async function getSignals(
+  instrumentId: number,
+  strategy?: string,
+): Promise<SignalDto[]> {
+  const params = new URLSearchParams({ instrument_id: String(instrumentId) });
+  if (strategy) params.set("strategy", strategy);
+  const res = await authedFetch(`${API_BASE}/api/signals?${params.toString()}`);
+  if (!res.ok) throw new Error(`getSignals failed: ${res.status}`);
+  return res.json();
+}
+
 // --- Chat (Phase 10) ---
 
 export interface ChatSessionDto {
