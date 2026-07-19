@@ -88,12 +88,16 @@ class Settings(BaseSettings):
         In prod, a missing critical secret must crash app construction with a
         readable, field-named error rather than binding a port on stub config.
         """
-        if self.env != "prod":
+        # Accept prod aliases case-insensitively so ENV=production / PROD also
+        # fail-close; dev/test/CI and any other value stay permissive.
+        if self.env.strip().lower() not in {"prod", "production"}:
             return self
 
         errors: list[str] = []
         if "localhost" in self.database_url or "127.0.0.1" in self.database_url:
             errors.append("database_url points at localhost — set the managed Postgres URL")
+        if "localhost" in self.redis_url or "127.0.0.1" in self.redis_url:
+            errors.append("redis_url points at localhost — set the managed Redis URL")
         if not self.jwt_secret and not self.effective_jwks_url:
             errors.append(
                 "jwt_secret (or supabase_jwks_url / supabase_url) is required for auth"
