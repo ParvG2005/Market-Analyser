@@ -17,7 +17,7 @@ import pandas as pd
 
 from app.scanner.indicators import rel_volume
 from app.strategies.base import SignalCandidate
-from app.strategies.levels import candle_ts, rr_target
+from app.strategies.levels import candle_ts, latest_session, rr_target
 from app.strategies.registry import register
 
 
@@ -49,43 +49,44 @@ class BreakoutRetestStrategy:
         self, candles: pd.DataFrame, params: dict[str, Any]
     ) -> list[SignalCandidate]:
         lookback = params["level_lookback"]
-        if len(candles) < lookback + 2:
+        # Anchor resistance to the trailing/latest session, not the oldest bars
+        # of an arbitrary rolling window — otherwise the live worker re-emits the
+        # same ancient breakout every bar (mirrors orb.py's session anchoring).
+        session = latest_session(candles)
+        if len(session) < lookback + 2:
             return []
 
-        pre_breakout = candles.iloc[:lookback]
+        pre_breakout = session.iloc[:lookback]
         resistance = float(pre_breakout["h"].max())
 
-        vols = candles["v"].astype(float).tolist()
+        vols = session["v"].astype(float).tolist()
         rv = rel_volume(vols, period=lookback)
+        tolerance = resistance * (params["retest_tolerance_pct"] / 100.0)
 
-        breakout_idx = None
-        for i in range(lookback, len(candles) - 1):
-            bar = candles.iloc[i]
+        # Scan backwards for the MOST RECENT breakout whose next bar is a held,
+        # confirmed retest — not the oldest — so the emitted signal tracks the
+        # current setup rather than replaying stale history.
+        for i in range(len(session) - 2, lookback - 1, -1):
             if math.isnan(rv[i]):
                 continue
-            if bar["c"] > resistance and rv[i] >= params["min_rel_volume"]:
-                breakout_idx = i
-                break
-        if breakout_idx is None:
-            return []
-
-        retest = candles.iloc[breakout_idx + 1]
-        tolerance = resistance * (params["retest_tolerance_pct"] / 100.0)
-        held_level = retest["l"] >= resistance - tolerance
-        closed_up = retest["c"] > resistance
-
-        if held_level and closed_up:
-            entry = float(retest["c"])
-            return [
-                SignalCandidate(
-                    ts=candle_ts(candles, breakout_idx + 1),
-                    direction="long",
-                    ref_entry=entry,
-                    ref_sl=resistance,
-                    ref_tp=rr_target(entry, resistance, "long", params["rr"]),
-                    meta={"resistance": resistance},
-                )
-            ]
+            bar = session.iloc[i]
+            if not (bar["c"] > resistance and rv[i] >= params["min_rel_volume"]):
+                continue
+            retest = session.iloc[i + 1]
+            held_level = retest["l"] >= resistance - tolerance
+            closed_up = retest["c"] > resistance
+            if held_level and closed_up:
+                entry = float(retest["c"])
+                return [
+                    SignalCandidate(
+                        ts=candle_ts(session, i + 1),
+                        direction="long",
+                        ref_entry=entry,
+                        ref_sl=resistance,
+                        ref_tp=rr_target(entry, resistance, "long", params["rr"]),
+                        meta={"resistance": resistance},
+                    )
+                ]
         return []
 
 
