@@ -28,6 +28,7 @@ _FORBIDDEN_PATTERNS = [
     re.compile(p)
     for p in [
         r"\byou (should|must|need to|have to|ought to|gotta) "
+        r"(?:\w+ly )*"  # allow adverbs between the modal and the verb ("definitely buy")
         r"(buy|sell|short|long|hold|dump|exit|enter|invest|ape)\b",
         r"\b(buy|sell|short|long|dump)\s+[\w/$]+\s+(now|today|immediately|asap)\b",
         r"\b(buy|sell|short|long)\s+(now|today|immediately|asap)\b",
