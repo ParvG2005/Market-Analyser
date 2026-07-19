@@ -13,7 +13,7 @@ import pandas as pd
 
 from app.scanner.indicators import ema, vwap
 from app.strategies.base import SignalCandidate
-from app.strategies.levels import candle_ts, rr_target, swing_high, swing_low
+from app.strategies.levels import candle_ts, latest_session, rr_target, swing_high, swing_low
 from app.strategies.registry import register
 
 
@@ -42,14 +42,20 @@ class EMAVWAPTrendStrategy:
         if len(candles) < params["slow"] + 2:
             return []
 
-        highs = candles["h"].astype(float).tolist()
-        lows = candles["l"].astype(float).tolist()
         closes = candles["c"].astype(float).tolist()
-        vols = candles["v"].astype(float).tolist()
 
         ema_fast = ema(closes, params["fast"])
         ema_slow = ema(closes, params["slow"])
-        vw = vwap(highs, lows, closes, vols)
+        # VWAP must reset at the session open — a cumulative VWAP over the whole
+        # rolling window anchors to an arbitrary old bar. EMAs are period-decayed
+        # averages and stay full-window (see vwap_revert for the same split).
+        session = latest_session(candles)
+        vw = vwap(
+            session["h"].astype(float).tolist(),
+            session["l"].astype(float).tolist(),
+            session["c"].astype(float).tolist(),
+            session["v"].astype(float).tolist(),
+        )
 
         i = len(candles) - 1
         entry = closes[-1]

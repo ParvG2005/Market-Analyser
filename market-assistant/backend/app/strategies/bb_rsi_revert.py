@@ -62,23 +62,31 @@ class BollingerRSIRevertStrategy:
         ts = candle_ts(candles, len(candles) - 1)
 
         if entry < lower[-1] and rsi_vals[-1] <= params["rsi_oversold"]:
+            # On an extreme bar the close can pierce far below the band, so a
+            # band-anchored stop would land ABOVE entry (invalid for a long).
+            # Clamp it below entry, keeping a band-width buffer either way.
+            buffer = (mid[-1] - lower[-1]) * 0.25
+            sl = min(lower[-1] - buffer, entry - buffer)
             return [
                 SignalCandidate(
                     ts=ts,
                     direction="long",
                     ref_entry=entry,
-                    ref_sl=lower[-1] - (mid[-1] - lower[-1]) * 0.25,
+                    ref_sl=sl,
                     ref_tp=mid[-1],
                     meta={"lower_band": lower[-1], "rsi": rsi_vals[-1]},
                 )
             ]
         if entry > upper[-1] and rsi_vals[-1] >= params["rsi_overbought"]:
+            # Symmetric clamp: keep the short's stop above entry on extreme bars.
+            buffer = (upper[-1] - mid[-1]) * 0.25
+            sl = max(upper[-1] + buffer, entry + buffer)
             return [
                 SignalCandidate(
                     ts=ts,
                     direction="short",
                     ref_entry=entry,
-                    ref_sl=upper[-1] + (upper[-1] - mid[-1]) * 0.25,
+                    ref_sl=sl,
                     ref_tp=mid[-1],
                     meta={"upper_band": upper[-1], "rsi": rsi_vals[-1]},
                 )
