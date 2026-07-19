@@ -41,7 +41,13 @@ export function Analytics() {
 
       <div className="analytics-row">
         <Panel title="Correlation matrix" tag="crypto · 1h returns">
-          {corr.data ? (
+          {corr.isLoading ? (
+            <p className="analytics-empty">Loading correlation…</p>
+          ) : corr.isError ? (
+            <p className="analytics-empty" role="alert">
+              Couldn’t load correlation data.
+            </p>
+          ) : corr.data ? (
             <CorrelationMatrix data={corr.data} />
           ) : (
             <p className="analytics-empty">No correlation data yet.</p>
@@ -49,7 +55,13 @@ export function Analytics() {
         </Panel>
 
         <Panel title="Seasonality" tag="BTC · day of week">
-          {seas.data ? (
+          {seas.isLoading ? (
+            <p className="analytics-empty">Loading seasonality…</p>
+          ) : seas.isError ? (
+            <p className="analytics-empty" role="alert">
+              Couldn’t load seasonality data.
+            </p>
+          ) : seas.data ? (
             <SeasonalityHeatmap data={seas.data} />
           ) : (
             <p className="analytics-empty">No seasonality data yet.</p>
