@@ -11,9 +11,10 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.core.config import get_settings
+from app.ingest.candle import Candle
 from app.ingest.nse_calendar import IST, is_in_session
 from app.ingest.universe_equity import ensure_equity_instruments
-from app.ingest.writer import upsert_candles
+from app.ingest.writer import publish_candles, upsert_candles
 from app.ingest.yfinance_adapter import fetch_candles
 
 POLL_TF = "1m"
@@ -42,15 +43,17 @@ async def poll_equity_universe(ctx: dict[str, Any]) -> int:
         start = now - timedelta(minutes=settings.EQUITY_POLL_INTERVAL_MIN)
         total_written = 0
 
+        polled: list[Candle] = []
         for instrument in instruments:
             raw_symbol = instrument.symbol.removesuffix(".NS")
             candles = fetch_candles(raw_symbol, POLL_TF, start, now)
             if not candles:
                 continue
-            # upsert_candles fans out each candle via publish_candle_update when
-            # redis is passed, so we do NOT publish separately here.
-            written = await upsert_candles(session, instrument.id, candles, redis=redis)
+            written = await upsert_candles(session, instrument.id, candles)
             total_written += written
+            polled.extend(candles)
 
         await session.commit()
+        # Fan out to the WS feed only after the commit succeeds.
+        await publish_candles(redis, polled)
         return total_written

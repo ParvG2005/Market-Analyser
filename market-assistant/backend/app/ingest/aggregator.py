@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -8,9 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ingest.candle import Candle
 from app.models.candle import CandleRow
 
+logger = logging.getLogger(__name__)
+
 _WINDOW_MINUTES = {"5m": 5, "15m": 15, "1h": 60, "1d": 1440}
 
 DEFAULT_HIGHER_TFS: tuple[str, ...] = ("5m", "15m", "1h", "1d")
+
+# Defensive bound on how many missed windows a single produce() call catches up
+# on per (instrument, tf). Realistic reconnect gaps are far smaller; this only
+# stops a pathological stale high-water mark from issuing unbounded queries.
+_MAX_CATCHUP_WINDOWS = 500
 
 
 def aggregate_candles(candles: list[Candle], target_tf: str) -> list[Candle]:
@@ -106,50 +114,75 @@ class LiveAggregator:
             max_ts = max(c.ts for c in candles)
             for tf in self._target_tfs:
                 step = _WINDOW_MINUTES[tf]
+                step_td = timedelta(minutes=step)
                 current_window = _floor_to_window(max_ts, step)
-                completed_window = current_window - timedelta(minutes=step)
+                completed_window = current_window - step_td
                 seen = self._last_emitted.get((instrument_id, tf))
                 if seen is not None and completed_window <= seen:
                     continue
 
-                rows = (
-                    await session.execute(
-                        select(CandleRow)
-                        .where(
-                            CandleRow.instrument_id == instrument_id,
-                            CandleRow.tf == "1m",
-                            CandleRow.ts >= completed_window,
-                            CandleRow.ts < current_window,
-                        )
-                        .order_by(CandleRow.ts)
-                    )
-                ).scalars().all()
+                # Emit EVERY complete window between the high-water mark and now,
+                # not just the latest, so a reconnect/backfill spanning several
+                # windows doesn't silently drop the middle ones. With no
+                # high-water mark yet, emit only the latest completed window
+                # (don't backfill all of history on first run).
+                if seen is None:
+                    first_window = completed_window
+                else:
+                    first_window = seen + step_td
 
-                minute_candles = [
-                    Candle(
-                        symbol=symbol,
-                        tf="1m",
-                        ts=r.ts,
-                        o=r.o or Decimal("0"),
-                        h=r.h or Decimal("0"),
-                        l=r.l or Decimal("0"),
-                        c=r.c or Decimal("0"),
-                        v=r.v or Decimal("0"),
+                windows: list[datetime] = []
+                w = first_window
+                while w <= completed_window:
+                    windows.append(w)
+                    w += step_td
+                if len(windows) > _MAX_CATCHUP_WINDOWS:
+                    logger.warning(
+                        "aggregator catch-up for (%s, %s) exceeded %d windows; "
+                        "processing only the most recent %d",
+                        instrument_id, tf, _MAX_CATCHUP_WINDOWS, _MAX_CATCHUP_WINDOWS,
                     )
-                    for r in rows
-                ]
-                rolled = aggregate_candles(minute_candles, tf)
-                if not rolled:
-                    continue
-                emissions.append(
-                    Emission(
-                        instrument_id=instrument_id,
-                        symbol=symbol,
-                        tf=tf,
-                        window_start=completed_window,
-                        candle=rolled[0],
+                    windows = windows[-_MAX_CATCHUP_WINDOWS:]
+
+                for window_start in windows:
+                    rows = (
+                        await session.execute(
+                            select(CandleRow)
+                            .where(
+                                CandleRow.instrument_id == instrument_id,
+                                CandleRow.tf == "1m",
+                                CandleRow.ts >= window_start,
+                                CandleRow.ts < window_start + step_td,
+                            )
+                            .order_by(CandleRow.ts)
+                        )
+                    ).scalars().all()
+
+                    minute_candles = [
+                        Candle(
+                            symbol=symbol,
+                            tf="1m",
+                            ts=r.ts,
+                            o=r.o or Decimal("0"),
+                            h=r.h or Decimal("0"),
+                            l=r.l or Decimal("0"),
+                            c=r.c or Decimal("0"),
+                            v=r.v or Decimal("0"),
+                        )
+                        for r in rows
+                    ]
+                    rolled = aggregate_candles(minute_candles, tf)
+                    if not rolled:
+                        continue
+                    emissions.append(
+                        Emission(
+                            instrument_id=instrument_id,
+                            symbol=symbol,
+                            tf=tf,
+                            window_start=window_start,
+                            candle=rolled[0],
+                        )
                     )
-                )
         return emissions
 
     def confirm(self, emissions: list[Emission]) -> None:

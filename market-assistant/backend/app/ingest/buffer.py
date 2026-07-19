@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ingest.aggregator import LiveAggregator
 from app.ingest.candle import Candle
 from app.ingest.dispatch import SupportsEnqueue, dispatch_close_jobs
-from app.ingest.writer import upsert_candles
+from app.ingest.writer import publish_candles, upsert_candles
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +65,7 @@ class CandleBuffer:
                     "flush: unknown symbol %s, dropping %d candles", symbol, len(candles)
                 )
                 continue
-            total_written += await upsert_candles(
-                session, instrument_id, candles, self._redis
-            )
+            total_written += await upsert_candles(session, instrument_id, candles)
         return total_written
 
     async def flush(self, session: AsyncSession) -> int:
@@ -92,6 +90,11 @@ class CandleBuffer:
                 return 0
             if written:
                 logger.info("buffer flush wrote %d candles", written)
+            # Fan out to the WS feed only AFTER the durable commit, so a
+            # subscriber never sees a candle a rollback would have discarded.
+            if self._redis is not None:
+                for candles in batch.values():
+                    await publish_candles(self._redis, candles)
             # Fan out candle-close compute jobs only AFTER the candles are
             # durably committed. A dispatch failure must never re-queue the
             # batch (the rows are already written; re-flushing would re-run the
@@ -131,12 +134,16 @@ class CandleBuffer:
                 instrument_id = self._symbol_to_instrument_id.get(symbol)
                 if instrument_id is None:
                     continue
-                await upsert_candles(session, instrument_id, candles, self._redis)
+                await upsert_candles(session, instrument_id, candles)
             await session.commit()
         except Exception:
             await session.rollback()
             logger.exception("higher-tf aggregation failed")
             return
+        # Publish the higher-tf candles only after the commit above succeeded.
+        if self._redis is not None:
+            for candles in higher.values():
+                await publish_candles(self._redis, candles)
         # Only advance the aggregator high-water mark after a durable commit.
         self._aggregator.confirm(emissions)
         if self._arq_pool is not None:

@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 from redis.asyncio import Redis
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,12 +13,12 @@ async def upsert_candles(
     session: AsyncSession,
     instrument_id: int,
     candles: list[Candle],
-    redis: Redis | None = None,
 ) -> int:
     """Batch upsert candles for one instrument. Idempotent on (instrument_id, tf, ts).
 
-    When `redis` is provided, each written candle is fanned out to its
-    Redis pub/sub channel so WebSocket subscribers see it live (Phase 3).
+    Pure DB write — the Redis fan-out is deliberately NOT done here. Publish only
+    AFTER the caller commits (see ``publish_candles``), so a WebSocket subscriber
+    can never observe a candle whose row a later rollback discarded.
     """
     if not candles:
         return 0
@@ -47,21 +49,26 @@ async def upsert_candles(
         },
     )
     await session.execute(stmt)
-
-    if redis is not None:
-        for c in candles:
-            await publish_candle_update(
-                redis,
-                c.symbol,
-                c.tf,
-                {
-                    "ts": c.ts.isoformat(),
-                    "o": float(c.o),
-                    "h": float(c.h),
-                    "l": float(c.l),
-                    "c": float(c.c),
-                    "v": float(c.v),
-                },
-            )
-
     return len(rows)
+
+
+async def publish_candles(redis: Redis, candles: Iterable[Candle]) -> None:
+    """Fan out committed candles to their Redis pub/sub channels for the WS feed.
+
+    Call this ONLY after the DB commit succeeds — publishing pre-commit risks
+    surfacing a candle that a rollback later discarded.
+    """
+    for c in candles:
+        await publish_candle_update(
+            redis,
+            c.symbol,
+            c.tf,
+            {
+                "ts": c.ts.isoformat(),
+                "o": float(c.o),
+                "h": float(c.h),
+                "l": float(c.l),
+                "c": float(c.c),
+                "v": float(c.v),
+            },
+        )
