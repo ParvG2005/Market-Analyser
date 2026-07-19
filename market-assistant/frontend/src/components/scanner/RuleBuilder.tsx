@@ -125,7 +125,14 @@ export function RuleBuilder({ onSubmit, pending = false }: RuleBuilderProps) {
           type="button"
           className="rb-add"
           data-testid="add-row"
-          onClick={() => setRows((prev) => [...prev, emptyRow()])}
+          onClick={() =>
+            // Inherit the current (shared) timeframe so adding a condition can't
+            // silently create a mixed-tf rule that the worker never fires.
+            setRows((prev) => [
+              ...prev,
+              { ...emptyRow(), tf: prev[0]?.tf ?? emptyRow().tf },
+            ])
+          }
         >
           + Add condition
         </button>
