@@ -104,3 +104,31 @@ trend/regime, multi-asset stocks, ML predictions, AI chatbot, alerts/auth).
 **Phase 12 — Deployment:** fail-fast config + free-tier survival guards + Docker
 image + Vercel/HF-Space deploy pipeline + smoke/acceptance gates shipped; live
 public deploy pending the one-time setup above.
+**Phase 13 — Dashboard polish:** wired Home/Analytics to live news + analytics
+APIs (correlation, seasonality) with recharts; core-journey e2e coverage.
+
+### Audit hardening pass
+
+A subsequent audited-defect sweep landed as eight focused PRs (one per area),
+each test-driven and CI-gated:
+
+1. **Input hardening** — shared live-frame validators across the WS hooks, a
+   per-frame SSE guard, symbol/tf socket teardown, and backend WS frame guards
+   (a malformed or off-schema frame can no longer crash a socket).
+2. **Scanner data integrity** — no double-counted closing bar, per-condition
+   indicator periods, cross-timeframe rule resolution, and a
+   `UNIQUE(rule_id, instrument_id, ts)` dedup with post-commit Redis claim.
+3. **Ingest ordering** — candles publish to Redis only after commit; the
+   aggregator emits every completed higher-tf window across reconnect gaps.
+4. **Auth + config** — owner-scoped backtests (nullable `user_id`, 404 on
+   mismatch); prod-config guard normalizes `prod`/`production` and rejects a
+   localhost Redis in prod.
+5. **Chat guards** — adverb-aware advice guard, enforced disclaimer, tighter
+   grounding (years aren't price claims), and non-blocking KB embedding.
+6. **ML correctness** — `purge ≥ horizon` walk-forward guard + cross-fold
+   leakage check, flat-volume feature handling, and real-bar return alignment.
+7. **Strategy semantics** — session-anchored breakout/VWAP resets and a
+   clamped Bollinger stop on extreme bars.
+8. **Analytics + frontend** — null (not NaN) correlations, exchange-local
+   seasonality hours, a wired symbol search + fail-safe logout, and assorted
+   leaf hardening (news limit validation, UTC quota date, bounded dedup sets).

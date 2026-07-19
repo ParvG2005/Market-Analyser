@@ -10,13 +10,15 @@ The app's Redis client is async (``redis.asyncio``), so the guard is async too.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 import redis.asyncio as redis
 
 
 def _today() -> date:
-    return date.today()
+    # UTC date, matching the documented per-UTC-date counter — date.today()
+    # is the host-local date and would roll the quota over at the wrong instant.
+    return datetime.now(UTC).date()
 
 
 # Slightly over 24h so a counter survives clock drift before its date rolls over.

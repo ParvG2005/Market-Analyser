@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import { ChartsPage } from "../../src/pages/Charts";
+
+const renderCharts = () =>
+  render(
+    <MemoryRouter>
+      <ChartsPage />
+    </MemoryRouter>,
+  );
 
 vi.mock("lightweight-charts", () => {
   const series = () => ({ setData: vi.fn(), applyOptions: vi.fn() });
@@ -36,7 +44,7 @@ beforeEach(() => {
 
 describe("ChartsPage", () => {
   it("renders symbol search, TF switcher, overlays, and disclaimer", async () => {
-    render(<ChartsPage />);
+    renderCharts();
     expect(screen.getByTestId("symbol-search")).toBeInTheDocument();
     expect(screen.getByTestId("tf-switcher")).toBeInTheDocument();
     expect(screen.getByTestId("indicator-overlays")).toBeInTheDocument();
@@ -44,7 +52,7 @@ describe("ChartsPage", () => {
   });
 
   it("switches active timeframe tab when clicked", async () => {
-    render(<ChartsPage />);
+    renderCharts();
     const fiveMinTab = screen.getByRole("tab", { name: "5m" });
     fireEvent.click(fiveMinTab);
     await waitFor(() => expect(fiveMinTab).toHaveAttribute("aria-selected", "true"));
