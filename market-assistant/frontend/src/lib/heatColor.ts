@@ -4,7 +4,7 @@
  */
 export function heatColor(changePct: number): string {
   if (changePct > 0.02) return "#0d5c3a";
-  if (changePct > 0) return "#1f8a5f";
+  if (changePct >= 0) return "#1f8a5f"; // flat 0% is neutral/green, never red
   if (changePct > -0.02) return "#8a2f2f";
   return "#5c0d0d";
 }
