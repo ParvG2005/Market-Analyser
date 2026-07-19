@@ -3,7 +3,10 @@ import { MiniChart } from "./MiniChart";
 import { ToolActivityIndicator } from "./ToolActivityIndicator";
 import type { ChatMessageVM } from "../../stores/chatStore";
 
-const SYMBOL_RE = /\b[A-Z]{2,5}\/[A-Z]{2,6}\b/;
+// Only real trading pairs (a base ticker over a known quote asset). The old
+// broad `[A-Z]{2,5}/[A-Z]{2,6}` matched indicator text like "EMA/VWAP" and
+// spuriously rendered a mini-chart for a non-existent symbol.
+const SYMBOL_RE = /\b[A-Z]{2,5}\/(?:USDT|USDC|USD|BUSD|BTC|ETH|EUR|GBP|JPY|INR)\b/;
 
 /** An assistant reply that reads as a recommendation carries the disclaimer.
  * The server-side advice guard already enforces this on persisted answers; the
