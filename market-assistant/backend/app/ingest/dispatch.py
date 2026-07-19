@@ -35,6 +35,8 @@ logger = logging.getLogger(__name__)
 class SupportsEnqueue(Protocol):
     async def enqueue_job(self, function: str, *args: Any) -> Any: ...
 
+    async def aclose(self) -> None: ...
+
 
 def _candle_dict(candle: Candle) -> dict[str, Any]:
     """Serialize a Candle for the scanner job (same shape as the WS payload)."""

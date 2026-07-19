@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingest.candle import Candle
+from app.ingest.dispatch import SupportsEnqueue, dispatch_close_jobs
 from app.ingest.writer import upsert_candles
 
 logger = logging.getLogger(__name__)
@@ -20,9 +21,11 @@ class CandleBuffer:
         self,
         symbol_to_instrument_id: dict[str, int],
         redis: Redis | None = None,
+        arq_pool: SupportsEnqueue | None = None,
     ) -> None:
         self._symbol_to_instrument_id = symbol_to_instrument_id
         self._redis = redis
+        self._arq_pool = arq_pool
         self._pending: dict[str, list[Candle]] = defaultdict(list)
         self._lock = asyncio.Lock()
 
@@ -68,6 +71,41 @@ class CandleBuffer:
         batch = await self._take_batch()
         return await self._write_batch(session, batch)
 
+    async def _flush_once(self, session_factory: SessionFactory) -> int:
+        batch = await self._take_batch()
+        if not batch:
+            return 0
+        async with session_factory() as session:
+            try:
+                written = await self._write_batch(session, batch)
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                await self._requeue(batch)
+                logger.exception(
+                    "buffer flush failed; re-queued %d candles for retry",
+                    sum(len(v) for v in batch.values()),
+                )
+                return 0
+            if written:
+                logger.info("buffer flush wrote %d candles", written)
+            # Fan out candle-close compute jobs only AFTER the candles are
+            # durably committed. A dispatch failure must never re-queue the
+            # batch (the rows are already written; re-flushing would re-run the
+            # upsert harmlessly but the point is fan-out is best-effort): log and
+            # move on so a transient arq/redis hiccup can't stall ingestion.
+            if self._arq_pool is not None:
+                try:
+                    await dispatch_close_jobs(
+                        self._arq_pool,
+                        session,
+                        batch,
+                        self._symbol_to_instrument_id,
+                    )
+                except Exception:
+                    logger.exception("dispatch of candle-close jobs failed")
+        return written
+
     async def run_flush_loop(
         self, session_factory: SessionFactory, interval_s: float = 5.0
     ) -> None:
@@ -75,17 +113,4 @@ class CandleBuffer:
             await asyncio.sleep(interval_s)
             if self.pending_count == 0:
                 continue
-            batch = await self._take_batch()
-            async with session_factory() as session:
-                try:
-                    written = await self._write_batch(session, batch)
-                    await session.commit()
-                    if written:
-                        logger.info("buffer flush wrote %d candles", written)
-                except Exception:
-                    await session.rollback()
-                    await self._requeue(batch)
-                    logger.exception(
-                        "buffer flush failed; re-queued %d candles for retry",
-                        sum(len(v) for v in batch.values()),
-                    )
+            await self._flush_once(session_factory)
