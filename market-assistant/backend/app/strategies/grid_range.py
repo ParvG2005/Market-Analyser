@@ -61,6 +61,11 @@ class GridRangeStrategy:
 
         if bar["l"] <= lowest_level + tolerance:
             next_level_up = levels[1]
+            # The close can sit ABOVE the next grid line, which would put the
+            # long's TP below entry -> the backtester scores it as an instant
+            # win. Only emit when the target is genuinely above entry.
+            if next_level_up <= entry:
+                return []
             return [
                 SignalCandidate(
                     ts=ts,
@@ -73,6 +78,10 @@ class GridRangeStrategy:
             ]
         if bar["h"] >= highest_level - tolerance:
             next_level_down = levels[-2]
+            # Symmetric guard: skip if the close is already below the next grid
+            # line down, which would leave the short's TP above entry.
+            if next_level_down >= entry:
+                return []
             return [
                 SignalCandidate(
                     ts=ts,
