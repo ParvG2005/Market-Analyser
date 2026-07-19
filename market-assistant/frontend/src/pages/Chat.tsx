@@ -101,6 +101,8 @@ export function Chat() {
               />
             )}
 
+            {/* Full append-only log: a message keeps its index for life, so the
+                index IS its stable identity here (unlike the sliced mini-chat). */}
             {messages.map((m, i) => (
               <MessageBubble key={i} message={m} />
             ))}

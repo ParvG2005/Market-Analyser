@@ -140,7 +140,7 @@ export function RuleBuilder({ onSubmit, pending = false }: RuleBuilderProps) {
           type="button"
           className="cta rb-save"
           data-testid="save-rule"
-          disabled={pending}
+          disabled={pending || !name.trim()}
           onClick={handleSave}
         >
           Save rule

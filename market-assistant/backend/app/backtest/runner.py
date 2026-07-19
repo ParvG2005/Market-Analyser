@@ -76,5 +76,7 @@ def run_backtest(
             )
             in_position = False
 
-    stats = compute_stats(equity_curve, trades, timeframe=timeframe, asset_class=asset_class)
+    stats = compute_stats(
+        equity_curve, trades, timeframe=timeframe, asset_class=asset_class, init_cash=init_cash
+    )
     return BacktestResult(equity_curve=equity_curve, trades=trades, stats=stats)

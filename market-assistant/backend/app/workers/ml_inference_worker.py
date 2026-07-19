@@ -49,7 +49,15 @@ async def _infer(
     latest_row = features[FEATURE_COLUMNS].iloc[[-1]]
     prob_up = predict_prob_up(model, calibrator, latest_row)
 
-    threshold = (ml_model.metrics or {}).get("threshold", 0.55)
+    # T3-8: a published model MUST carry its decision threshold in metrics
+    # (persisted via train.train_result_metrics). Silently defaulting to 0.55
+    # would serve a threshold the publish gate never validated, so assert it.
+    metrics = ml_model.metrics or {}
+    if "threshold" not in metrics:
+        raise ValueError(
+            f"published MLModel {ml_model.id} is missing 'threshold' in metrics"
+        )
+    threshold = metrics["threshold"]
     if not should_emit_signal(ml_model.published, prob_up, threshold):
         return
 

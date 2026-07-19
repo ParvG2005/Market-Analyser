@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
+from app.core.config import get_settings
 from app.ingest.candle import Candle
 
 logger = logging.getLogger(__name__)
@@ -10,10 +11,12 @@ _REQUIRED_KLINE_FIELDS = ("t", "i", "o", "h", "l", "c", "v", "x")
 
 
 def _binance_symbol_to_pair(raw_symbol: str) -> str:
-    # Binance sends "BTCUSDT" with no separator; USDT is the only quote
-    # asset used across this pipeline's universe (see universe.py).
-    if raw_symbol.endswith("USDT"):
-        return f"{raw_symbol[:-4]}/USDT"
+    # Binance sends "BTCUSDT" with no separator; split on the configured quote
+    # asset (universe.py selects symbols by the same setting) so the parser
+    # stays consistent if the universe's quote asset ever changes.
+    quote = get_settings().UNIVERSE_QUOTE_ASSET
+    if raw_symbol.endswith(quote):
+        return f"{raw_symbol[: -len(quote)]}/{quote}"
     return raw_symbol
 
 

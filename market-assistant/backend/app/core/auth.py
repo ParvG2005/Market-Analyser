@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Header, HTTPException, WebSocket, status
+from fastapi import Depends, Header, HTTPException, WebSocket, status
 from pydantic import ValidationError
 
 from app.core.config import get_settings
@@ -41,6 +41,21 @@ async def get_current_user_id(
         return x_dev_user if x_dev_user is not None else DEV_USER_ID
     # 3) Prod with no/invalid bearer -> reject.
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
+
+
+async def require_admin(
+    user_id: uuid.UUID = Depends(get_current_user_id),
+) -> uuid.UUID:
+    """Gate an endpoint to admin users. Dev/test bypass (same philosophy as the
+    dev-auth stub: never gate locally); prod checks the ADMIN_USER_IDS allowlist
+    and rejects anyone not on it (empty allowlist => fail-closed)."""
+    settings = get_settings()
+    if settings.env in _NON_PROD_ENVS:
+        return user_id
+    admins = {a.strip() for a in settings.admin_user_ids.split(",") if a.strip()}
+    if str(user_id) not in admins:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin privileges required")
+    return user_id
 
 
 async def get_current_user_id_from_ws_token(token: str) -> uuid.UUID:

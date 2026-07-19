@@ -8,15 +8,23 @@ function candle(ts: string, o: number, h: number, l: number, c: number, v: numbe
 }
 
 describe("ema", () => {
-  it("matches hand-computed EMA(3) on a 5-point series", () => {
+  it("matches backend EMA(3): NaN before period-1, SMA seed at period-1", () => {
     const candles = [10, 11, 12, 13, 14].map((c, i) => candle(`t${i}`, c, c, c, c, 1));
     const result = ema(candles, 3);
-    // k = 2/(3+1) = 0.5; seed = 10; 10.5; 11.25; 12.125; 13.0625
-    expect(result[0]).toBeCloseTo(10);
-    expect(result[1]).toBeCloseTo(10.5);
-    expect(result[2]).toBeCloseTo(11.25);
-    expect(result[3]).toBeCloseTo(12.125);
-    expect(result[4]).toBeCloseTo(13.0625);
+    // Backend parity (app/scanner/indicators.py): out[i]=NaN for i<period-1;
+    // seed = SMA(first period) = (10+11+12)/3 = 11 at index 2; k = 0.5.
+    expect(Number.isNaN(result[0])).toBe(true);
+    expect(Number.isNaN(result[1])).toBe(true);
+    expect(result[2]).toBeCloseTo(11);
+    expect(result[3]).toBeCloseTo(12); // 13*0.5 + 11*0.5
+    expect(result[4]).toBeCloseTo(13); // 14*0.5 + 12*0.5
+  });
+
+  it("returns all NaN when fewer than `period` candles", () => {
+    const candles = [10, 11].map((c, i) => candle(`t${i}`, c, c, c, c, 1));
+    const result = ema(candles, 3);
+    expect(result.every((v) => Number.isNaN(v))).toBe(true);
+    expect(result).toHaveLength(2);
   });
 });
 
@@ -40,7 +48,8 @@ describe("bollinger", () => {
     expect(result[3]).toBeNull();
     expect(result[4]).not.toBeNull();
     expect(result[4]!.mid).toBeCloseTo(12);
-    const variance = ((10 - 12) ** 2 * 4 + (20 - 12) ** 2) / 5;
+    // Sample stddev (ddof=1): divide by period-1 = 4, matching the backend.
+    const variance = ((10 - 12) ** 2 * 4 + (20 - 12) ** 2) / 4;
     const stdDev = Math.sqrt(variance);
     expect(result[4]!.upper).toBeCloseTo(12 + 2 * stdDev);
     expect(result[4]!.lower).toBeCloseTo(12 - 2 * stdDev);

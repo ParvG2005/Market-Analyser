@@ -7,6 +7,7 @@ which is idempotent on ``(instrument_id, tf, ts)`` and (when a Redis handle is
 supplied) fans each written candle out over Phase-3 pub/sub.
 """
 
+import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -40,13 +41,18 @@ async def poll_equity_universe(ctx: dict[str, Any]) -> int:
     async with ctx["session_factory"]() as session:
         instruments = await ensure_equity_instruments(session)
 
-        start = now - timedelta(minutes=settings.EQUITY_POLL_INTERVAL_MIN)
+        # Look back twice the poll interval so a delayed or skipped run still
+        # sweeps the gap; upsert is idempotent on (instrument_id, tf, ts) so the
+        # overlap re-writes nothing new.
+        start = now - timedelta(minutes=2 * settings.EQUITY_POLL_INTERVAL_MIN)
         total_written = 0
 
         polled: list[Candle] = []
         for instrument in instruments:
             raw_symbol = instrument.symbol.removesuffix(".NS")
-            candles = fetch_candles(raw_symbol, POLL_TF, start, now)
+            # fetch_candles is a blocking yfinance call; run it off the event
+            # loop so the poller doesn't stall the worker's other coroutines.
+            candles = await asyncio.to_thread(fetch_candles, raw_symbol, POLL_TF, start, now)
             if not candles:
                 continue
             written = await upsert_candles(session, instrument.id, candles)

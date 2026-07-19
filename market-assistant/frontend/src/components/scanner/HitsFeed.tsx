@@ -28,7 +28,7 @@ export function HitsFeed({ hits }: HitsFeedProps) {
         // Prod payloads use period-suffixed keys (e.g. `rsi:14`); strip the
         // suffix so we can read bare indicator names and show clean labels.
         const bare: Record<string, number | null> = Object.fromEntries(
-          Object.entries(hit.payload).map(([k, v]) => [k.split(":")[0], v]),
+          Object.entries(hit.payload ?? {}).map(([k, v]) => [k.split(":")[0], v]),
         );
         return (
           <li className="hit-item" key={`${hit.rule_id}-${hit.instrument_id}-${hit.ts}-${i}`}>

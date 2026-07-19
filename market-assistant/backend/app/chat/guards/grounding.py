@@ -27,6 +27,9 @@ _NUMBER_RE = re.compile(
     r"(?<![A-Za-z0-9.])(\$?)((?:\d{1,3}(?: \d{3})+|\d[\d,]*)(?:\.\d+)?)([kKmMbB]?)(?![A-Za-z0-9.])"
 )
 _TOLERANCE = 0.05
+# Relative slack so large prices (e.g. 65000) aren't rejected over sub-dollar
+# rounding while small indicator values keep the tight absolute floor.
+_REL_TOLERANCE = 0.001
 _SUFFIX_MULT = {"k": 1e3, "m": 1e6, "b": 1e9}
 
 # Keys whose numeric values are identifiers/pagination, never market facts — a
@@ -44,14 +47,16 @@ class GroundingResult:
 
 
 def _collect(obj: Any, numbers: list[float]) -> None:
+    # T2-15: harvest known numbers from SCALAR fields only. Arrays (e.g. a list
+    # of closes) would otherwise let a claim be "grounded" by coincidentally
+    # matching any one of many series values, so lists are skipped entirely.
     if isinstance(obj, dict):
         for key, value in obj.items():
             if key in _NON_FACT_KEYS:
                 continue
             _collect(value, numbers)
     elif isinstance(obj, list):
-        for value in obj:
-            _collect(value, numbers)
+        return
     elif isinstance(obj, bool):
         return
     elif isinstance(obj, int | float):
@@ -94,6 +99,8 @@ def check_grounding(answer: str, facts: list[ToolResult]) -> GroundingResult:
             claim = _claim_value(core, suffix)
         except ValueError:
             continue
-        if not any(abs(claim - k) <= _TOLERANCE for k in known):
+        if not any(
+            abs(claim - k) <= max(_TOLERANCE, _REL_TOLERANCE * abs(k)) for k in known
+        ):
             unsupported.append(f"{dollar}{core}{suffix}")
     return GroundingResult(grounded=len(unsupported) == 0, unsupported_claims=unsupported)

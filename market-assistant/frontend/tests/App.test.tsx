@@ -35,7 +35,12 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => [] }));
   // These specs assert route-render smoke coverage behind the RequireAuth
   // guard added in Phase 11 — sign in so the guard lets the routes through.
-  useAuthStore.setState({ isAuthenticated: true, user: { email: "a@b.com" } as never });
+  useAuthStore.setState({
+    isAuthenticated: true,
+    resolved: true,
+    session: { user: { email: "a@b.com" } } as never,
+    user: { email: "a@b.com" } as never,
+  });
 });
 
 const ROUTES: Array<[string, string]> = [

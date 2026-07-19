@@ -32,18 +32,32 @@ async function fetchBacktest(id: string): Promise<BacktestResponse> {
   return res.json();
 }
 
+/** Max consecutive fetch failures before we stop polling a backtest. */
+export const MAX_POLL_FAILURES = 3;
+const POLL_MS = 2000;
+
+/**
+ * Poll cadence given the current query state: stop (`false`) on a terminal
+ * status OR after too many consecutive failures; otherwise poll every 2s.
+ */
+export function backtestRefetchInterval(
+  status: string | undefined,
+  failureCount: number,
+): number | false {
+  if (failureCount >= MAX_POLL_FAILURES) return false;
+  return status === "done" || status === "failed" ? false : POLL_MS;
+}
+
 /**
  * TanStack Query wrapper over `GET /backtests/{id}`. Polls every 2s while the
  * backtest is still running, and stops once it reaches a terminal state
- * (`status === "done"` or `status === "failed"`).
+ * (`status === "done"` / `"failed"`) or the endpoint fails repeatedly.
  */
 export function useBacktest(id: string) {
   return useQuery({
     queryKey: ["backtest", id],
     queryFn: () => fetchBacktest(id),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "done" || status === "failed" ? false : 2000;
-    },
+    refetchInterval: (query) =>
+      backtestRefetchInterval(query.state.data?.status, query.state.fetchFailureCount),
   });
 }

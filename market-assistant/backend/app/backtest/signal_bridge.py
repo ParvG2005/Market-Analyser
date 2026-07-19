@@ -220,6 +220,27 @@ def _finite(value: float) -> float:
     return float(value) if math.isfinite(value) else 0.0
 
 
+_TF_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240, "1d": 1440}
+
+
+def _session_floor_window(window: int, tf: str | None, asset_class: str) -> int:
+    """Floor the rolling window to at least one trading session's worth of bars.
+
+    Session-anchored presets (ORB, breakout_retest via ``latest_session``) need
+    the full current session in view; a window shorter than the session (e.g. a
+    default 60 on 15m equity, whose session is 25 bars — or 15m crypto, whose
+    UTC-day session is 96 bars) truncates it and drops valid signals.
+    """
+    if tf is None:
+        return window
+    minutes = _TF_MINUTES.get(tf)
+    if minutes is None:
+        return window
+    day_minutes = 375 if asset_class == "equity" else 1440
+    session_bars = max(1, math.ceil(day_minutes / minutes))
+    return max(window, session_bars)
+
+
 def run_signal_backtest(
     preset: _SignalPreset,
     candles: pd.DataFrame,
@@ -228,6 +249,8 @@ def run_signal_backtest(
     slippage_bps: float,
     window: int = 60,
     init_cash: float = 10_000.0,
+    tf: str | None = None,
+    asset_class: str = "crypto",
 ) -> SignalBacktestResult:
     """Honest, self-contained signal backtest.
 
@@ -236,6 +259,7 @@ def run_signal_backtest(
     fees+slippage are subtracted. All stats are plain, finite, JSON-safe
     floats/ints, sharing ``run_backtest``'s public keys.
     """
+    window = _session_floor_window(window, tf, asset_class)
     ts = _timestamps(candles)
     round_trip_cost = 2.0 * (fees_bps + slippage_bps) / 10_000.0
 

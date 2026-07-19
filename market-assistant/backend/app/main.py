@@ -1,3 +1,8 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,10 +25,23 @@ from app.core.logging import configure_logging
 from app.core.sentry import init_sentry
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # One shared arq pool for the whole process, created at startup instead of
+    # per request (a new create_pool per request leaks connections under load).
+    app.state.arq_pool = await create_pool(
+        RedisSettings.from_dsn(get_settings().redis_url)
+    )
+    try:
+        yield
+    finally:
+        await app.state.arq_pool.aclose()
+
+
 def create_app() -> FastAPI:
     configure_logging()
     init_sentry()
-    app = FastAPI(title="Market Analysis Assistant")
+    app = FastAPI(title="Market Analysis Assistant", lifespan=_lifespan)
     # Browser origins are locked to the configured allowlist; never "*".
     app.add_middleware(
         CORSMiddleware,

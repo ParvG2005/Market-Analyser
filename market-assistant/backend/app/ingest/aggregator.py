@@ -20,6 +20,12 @@ DEFAULT_HIGHER_TFS: tuple[str, ...] = ("5m", "15m", "1h", "1d")
 # stops a pathological stale high-water mark from issuing unbounded queries.
 _MAX_CATCHUP_WINDOWS = 500
 
+# Windows of this size or smaller must be 100% complete to emit; larger windows
+# tolerate a small gap (see _rollup_window).
+_STRICT_MAX_MINUTES = 5
+# Minimum fraction of a large window's 1m bars that must be present to emit.
+_MIN_WINDOW_COVERAGE = 0.9
+
 
 def aggregate_candles(candles: list[Candle], target_tf: str) -> list[Candle]:
     """Roll up sorted, contiguous 1m candles into target_tf bars.
@@ -60,6 +66,43 @@ def aggregate_candles(candles: list[Candle], target_tf: str) -> list[Candle]:
     return result
 
 
+def _rollup_window(
+    minute_candles: list[Candle], target_tf: str, window_start: datetime
+) -> Candle | None:
+    """Roll ONE provably-closed window's present 1m bars into a single higher-tf
+    candle, tolerating small gaps.
+
+    Unlike :func:`aggregate_candles` (positional, all-or-nothing), a window here
+    is already known to be closed: any still-missing 1m bar can now only arrive
+    via backfill, so demanding 100% coverage would permanently drop a large
+    higher-tf bar over even a one-minute gap. Small windows
+    (<= ``_STRICT_MAX_MINUTES``) still require full coverage; larger windows
+    emit once coverage reaches ``_MIN_WINDOW_COVERAGE``. The candle is anchored
+    to ``window_start`` (correct even when the window's first minute is missing).
+    Returns ``None`` when the window is too sparse to emit.
+    """
+    window = _WINDOW_MINUTES[target_tf]
+    present = len(minute_candles)
+    if present == 0:
+        return None
+    if window <= _STRICT_MAX_MINUTES:
+        if present < window:
+            return None
+    elif present < window * _MIN_WINDOW_COVERAGE:
+        return None
+    ordered = sorted(minute_candles, key=lambda c: c.ts)
+    return Candle(
+        symbol=ordered[0].symbol,
+        tf=target_tf,
+        ts=window_start,
+        o=ordered[0].o,
+        h=max(c.h for c in ordered),
+        l=min(c.l for c in ordered),
+        c=ordered[-1].c,
+        v=sum((c.v for c in ordered), Decimal("0")),
+    )
+
+
 def _floor_to_window(ts: datetime, minutes: int) -> datetime:
     """Floor a UTC timestamp to the start of its ``minutes``-long window.
 
@@ -88,8 +131,10 @@ class LiveAggregator:
     A higher-tf window ``[W, W+Δ)`` is only emitted once it is provably closed:
     i.e. a 1m candle has arrived in the *next* window. The window's 1m rows are
     read back from the DB (so backfilled bars are included) and rolled up with
-    :func:`aggregate_candles`; a window missing any 1m bar produces nothing
-    (partial windows are dropped) and is retried on a later flush.
+    :func:`_rollup_window`, which tolerates small gaps for large windows (a lone
+    missing minute would otherwise permanently drop a 1h/1d bar); a window still
+    too sparse produces nothing and is retried once the periodic backfill sweep
+    fills the gap.
 
     ``confirm`` advances the per-(instrument, tf) high-water mark only after the
     caller has durably persisted the emitted candles, so a persist failure
@@ -171,8 +216,8 @@ class LiveAggregator:
                         )
                         for r in rows
                     ]
-                    rolled = aggregate_candles(minute_candles, tf)
-                    if not rolled:
+                    rolled = _rollup_window(minute_candles, tf, window_start)
+                    if rolled is None:
                         continue
                     emissions.append(
                         Emission(
@@ -180,7 +225,7 @@ class LiveAggregator:
                             symbol=symbol,
                             tf=tf,
                             window_start=window_start,
-                            candle=rolled[0],
+                            candle=rolled,
                         )
                     )
         return emissions

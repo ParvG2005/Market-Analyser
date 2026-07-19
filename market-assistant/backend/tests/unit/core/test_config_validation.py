@@ -22,6 +22,7 @@ VALID_PROD = {
     "LLM_PROVIDER": "groq",
     "GROQ_API_KEY": "gsk_realkey",
     "telegram_bot_token": "123:abc",
+    "cors_allowed_origins": "https://app.example.com",
 }
 
 

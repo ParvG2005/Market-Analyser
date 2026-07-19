@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     supabase_jwks_url: str = ""       # if set -> verify RS256/ES256 via JWKS instead of HS256
     # --- Phase 11: hardening ---
     cors_allowed_origins: str = "http://localhost:5173"  # comma-separated origins
+    # Comma-separated user UUIDs permitted to mutate instruments (create/seed/
+    # patch) in prod. Empty => no admins (fail-closed) in prod; dev/test bypass.
+    admin_user_ids: str = ""
     sentry_dsn: str = ""
     # --- Phase 11: alerts ---
     telegram_bot_token: str = ""
@@ -58,6 +61,7 @@ class Settings(BaseSettings):
 
     # --- Phase 12: free-tier survival knobs (required-with-explicit-default) ---
     max_universe_size: int = Field(default=25, ge=1)       # hard crypto universe cap
+    max_backtest_span_days: int = Field(default=366, ge=1)  # max backtest window span
     candle_retention_days: int = Field(default=60, ge=1)   # 1m-candle retention window
     llm_daily_quota: int = Field(default=500, ge=1)        # global daily LLM call budget
 
@@ -105,6 +109,14 @@ class Settings(BaseSettings):
         if not self.jwt_issuer:
             errors.append(
                 "jwt_issuer is required in prod so the token issuer (iss) is validated"
+            )
+        origins = self.cors_origins_list
+        if not origins or any(
+            ("localhost" in o or "127.0.0.1" in o) for o in origins
+        ):
+            errors.append(
+                "cors_allowed_origins still points at localhost/default — set the "
+                "deployed frontend origin(s)"
             )
         key_field = _PROVIDER_KEY_FIELD.get(self.LLM_PROVIDER.lower())
         if key_field is None:

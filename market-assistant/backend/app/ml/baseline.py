@@ -25,23 +25,33 @@ def random_baseline_return(
     horizon: int = 1,
     n_trials: int = 200,
     seed: int = 42,
+    n_entries: int | None = None,
 ) -> float:
-    # The random baseline must trade at the MODEL's horizon; comparing an
-    # h-bar model against a 1-bar random benchmark is apples-to-oranges (they
-    # pay costs and capture drift over different holding periods).
+    # The random baseline must trade at the MODEL's horizon AND at the model's
+    # entry FREQUENCY: comparing a model that takes k trades against a ~50%
+    # coin-flip benchmark (many more trades, far more cost drag) is
+    # apples-to-oranges. `n_entries` = the model's non-overlapping trade count;
+    # each trial places exactly that many random entries. Falls back to ~half
+    # the tradable bars when unspecified.
     rng = np.random.default_rng(seed)
     close = candles["c"].to_numpy()
     n = len(close)
+    tradable = max(0, n - horizon)
+    k = tradable // 2 if n_entries is None else n_entries
+    k = max(0, min(k, tradable))
 
     trial_returns = []
     for _ in range(n_trials):
-        entries_mask = rng.integers(0, 2, size=n).astype(bool)
+        entries_mask = np.zeros(n, dtype=bool)
+        if k > 0:
+            idx = rng.choice(tradable, size=k, replace=False)
+            entries_mask[idx] = True
         trial_returns.append(
             simulate_directional_returns(
                 close, entries_mask, horizon=horizon, fees_bps=fees_bps, slippage_bps=slippage_bps
             )
         )
-    return float(np.mean(trial_returns))
+    return float(np.mean(trial_returns)) if trial_returns else 0.0
 
 
 def passes_baseline_gate(

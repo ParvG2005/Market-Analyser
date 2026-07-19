@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from arq import Retry
 from sqlalchemy import select
 
 from app.alerts.telegram import format_hit_message, send_telegram_message
@@ -82,6 +83,7 @@ async def send_telegram_alert_job(ctx: dict[str, Any], hit_id: int) -> int:
         )
 
     sent = 0
+    had_failure = False
     for sub in subs:
         # Skip a subscriber already delivered in a prior run of this job.
         delivery_key = f"alert_sent:{hit_id}:{sub.id}"
@@ -106,15 +108,23 @@ async def send_telegram_alert_job(ctx: dict[str, Any], hit_id: int) -> int:
                 "telegram send raised for sub %s (hit %s); continuing", sub.id, hit_id,
                 exc_info=True,
             )
+            had_failure = True
             continue
         if not result.ok:
             logger.warning(
                 "telegram send not ok for sub %s (hit %s): %s %s",
                 sub.id, hit_id, result.status_code, result.description,
             )
+            had_failure = True
             continue
         # Mark delivered only after a confirmed ok send.
         await redis.set(delivery_key, "1", ex=_DELIVERY_MARK_TTL_SECONDS)
         sent += 1
+
+    # T1-7: if any send failed, ask arq to retry the whole job. Delivered
+    # subscribers are guarded by their per-(hit, sub) delivery marker, so a
+    # retry re-attempts only the ones that did not go through.
+    if had_failure:
+        raise Retry()
 
     return sent

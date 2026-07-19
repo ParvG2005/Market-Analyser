@@ -150,6 +150,7 @@ async def get_signals(
     instrument_id: int,
     strategy: str | None = None,
     session: AsyncSession = Depends(get_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> list[Signal]:
     query = select(Signal).where(Signal.instrument_id == instrument_id)
     if strategy:

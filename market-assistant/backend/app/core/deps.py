@@ -3,8 +3,8 @@ from functools import lru_cache
 from typing import Any, cast
 
 import redis.asyncio as redis
-from arq import create_pool
-from arq.connections import ArqRedis, RedisSettings
+from arq.connections import ArqRedis
+from fastapi import Request
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -54,14 +54,11 @@ def get_redis() -> redis.Redis:
     return cast(redis.Redis, client)
 
 
-async def get_arq_pool() -> AsyncIterator[ArqRedis]:
-    """FastAPI dependency yielding an arq redis pool for enqueuing jobs.
+async def get_arq_pool(request: Request) -> ArqRedis:
+    """FastAPI dependency returning the shared arq pool created at app startup
+    (see the lifespan in app.main), rather than a new pool per request.
 
     Integration tests override this with a fake pool so they do not depend on
     a live arq worker / redis.
     """
-    pool = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
-    try:
-        yield pool
-    finally:
-        await pool.aclose()
+    return cast(ArqRedis, request.app.state.arq_pool)

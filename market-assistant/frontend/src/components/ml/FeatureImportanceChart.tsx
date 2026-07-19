@@ -4,7 +4,7 @@ import type { MLModelResponse } from "../../hooks/useMLModel";
  * Ranked horizontal bars of model feature importances, largest first.
  */
 export function FeatureImportanceChart({ data }: { data: MLModelResponse }) {
-  const rows = Object.entries(data.feature_importances).sort((a, b) => b[1] - a[1]);
+  const rows = Object.entries(data.feature_importances ?? {}).sort((a, b) => b[1] - a[1]);
   const max = Math.max(0.0001, ...rows.map(([, v]) => v));
 
   return (

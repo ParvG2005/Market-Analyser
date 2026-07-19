@@ -2,6 +2,8 @@ import pandas as pd
 
 
 def build_fixed_horizon_labels(candles: pd.DataFrame, horizon: int) -> pd.DataFrame:
+    if horizon < 1:
+        raise ValueError(f"horizon must be >= 1, got {horizon}")
     close = candles["c"]
     future_close = close.shift(-horizon)
     y = (future_close > close).astype(float)
@@ -15,6 +17,8 @@ def build_fixed_horizon_labels(candles: pd.DataFrame, horizon: int) -> pd.DataFr
 def build_triple_barrier_labels(
     candles: pd.DataFrame, horizon: int, tp_pct: float, sl_pct: float
 ) -> pd.DataFrame:
+    if horizon < 1:
+        raise ValueError(f"horizon must be >= 1, got {horizon}")
     close = candles["c"]
     high = candles["h"]
     low = candles["l"]

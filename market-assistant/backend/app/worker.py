@@ -46,7 +46,13 @@ async def trigger_backfill_sweep(ctx: dict[str, Any]) -> int:
     session_factory = ctx["session_factory"]
     async with session_factory() as session:
         result = await session.execute(
-            select(Instrument.id, Instrument.symbol).where(Instrument.active.is_(True))
+            select(Instrument.id, Instrument.symbol).where(
+                Instrument.active.is_(True),
+                # The sweep backfills via the CCXT binance exchange, which only
+                # knows crypto pairs; equity/other instruments have no binance
+                # symbol and would error every run.
+                Instrument.asset_class == "crypto",
+            )
         )
         instruments = result.all()
 
@@ -54,9 +60,19 @@ async def trigger_backfill_sweep(ctx: dict[str, Any]) -> int:
     start_ts = end_ts - _BACKFILL_SWEEP_WINDOW
     total = 0
     for instrument_id, symbol in instruments:
-        total += await backfill_gaps(
-            ctx, instrument_id, symbol, _BACKFILL_SWEEP_TF, start_ts, end_ts
-        )
+        # Isolate per-instrument failures (a delisted symbol, a transient CCXT
+        # error) so one bad instrument never aborts the whole sweep.
+        try:
+            total += await backfill_gaps(
+                ctx, instrument_id, symbol, _BACKFILL_SWEEP_TF, start_ts, end_ts
+            )
+        except Exception:
+            logger.warning(
+                "backfill sweep failed for instrument %s (%s); continuing",
+                instrument_id,
+                symbol,
+                exc_info=True,
+            )
     return total
 
 
