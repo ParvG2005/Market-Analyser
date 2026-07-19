@@ -13,7 +13,7 @@ import pandas as pd
 
 from app.scanner.indicators import atr, rsi, vwap
 from app.strategies.base import SignalCandidate
-from app.strategies.levels import candle_ts
+from app.strategies.levels import candle_ts, latest_session
 from app.strategies.registry import register
 
 
@@ -42,19 +42,29 @@ class VWAPRevertStrategy:
         highs = candles["h"].astype(float).tolist()
         lows = candles["l"].astype(float).tolist()
         closes = candles["c"].astype(float).tolist()
-        volumes = candles["v"].astype(float).tolist()
 
-        vw = vwap(highs, lows, closes, volumes)
+        # VWAP (and the deviation std it feeds) MUST reset at the session open;
+        # a cumulative VWAP over an arbitrary rolling window anchors to the
+        # window's oldest bar and fabricates the reversion reference. RSI/ATR are
+        # period-based indicators and are computed over the full window as usual.
+        session = latest_session(candles)
+        s_high = session["h"].astype(float).tolist()
+        s_low = session["l"].astype(float).tolist()
+        s_close = session["c"].astype(float).tolist()
+        s_vol = session["v"].astype(float).tolist()
+        sv = vwap(s_high, s_low, s_close, s_vol)
+
         rsi_vals = rsi(closes, period=14)
         atr_vals = atr(highs, lows, closes, period=14) if len(closes) >= 14 else None
 
-        deviation = pd.Series([c - v for c, v in zip(closes, vw)])
+        deviation = pd.Series([c - v for c, v in zip(s_close, sv)])
         std = deviation.expanding(min_periods=5).std()
 
-        i = len(candles) - 1
+        i = len(candles) - 1  # full-window index (RSI/ATR); last bar is the session's last
         dev = deviation.iloc[-1]
         sd = std.iloc[-1]
-        if sd == 0 or pd.isna(sd) or pd.isna(vw[i]):
+        vwap_now = sv[-1]
+        if sd == 0 or pd.isna(sd) or pd.isna(vwap_now):
             return []
 
         rsi_last = rsi_vals[i]
@@ -65,7 +75,7 @@ class VWAPRevertStrategy:
         entry = float(bar["c"])
         a = float(atr_vals[i]) if atr_vals is not None and not pd.isna(atr_vals[i]) else 0.0
         ts = candle_ts(candles, i)
-        vwap_now = float(vw[i])
+        vwap_now = float(vwap_now)
 
         if dev <= -params["std_k"] * sd and rsi_last <= params["rsi_oversold"]:
             sl = entry - a * params["sl_atr_mult"]

@@ -2,7 +2,14 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+# Minimum mini-backtest window per timeframe = bars in one NSE cash session
+# (375 min: 09:15-15:30 IST). Guarantees session-anchored presets see a full
+# opening range / VWAP reset. 1d uses a warmup-sized floor (one bar == one
+# session, but ATR/RSI-14 need history).
+_MIN_WINDOW_BY_TF = {"1m": 375, "5m": 75, "15m": 25, "1h": 7, "1d": 20}
+_DEFAULT_MIN_WINDOW = 20
 
 
 class StrategyMeta(BaseModel):
@@ -67,10 +74,20 @@ class MiniBacktestRequest(BaseModel):
     params: dict[str, Any] | None = None
     fees_bps: int = 10
     slippage_bps: int = 5
-    # Rolling lookback the preset's generate_signals sees per bar. Clamped to a
-    # sane floor: below ~20 bars indicators (ATR/ADX period 14, EMA warmup)
-    # cannot warm up and session-anchored presets (ORB/VWAP) misbehave.
-    window: int = Field(default=60, ge=20, le=2000)
+    # Rolling lookback the preset's generate_signals sees per bar. Floored per
+    # timeframe (see _floor_window_to_session) so the window always spans at
+    # least one full trading session: session-anchored presets (ORB opening
+    # range, VWAP reset) need the true session open, not the oldest bar of a
+    # too-short window. A 1m NSE session is 375 bars, so the old ge=20 floor
+    # silently fabricated the opening range / VWAP anchor.
+    window: int = Field(default=60, ge=1, le=2000)
+
+    @model_validator(mode="after")
+    def _floor_window_to_session(self) -> "MiniBacktestRequest":
+        floor = _MIN_WINDOW_BY_TF.get(self.tf, _DEFAULT_MIN_WINDOW)
+        if self.window < floor:
+            self.window = floor
+        return self
 
 
 class MiniBacktestResponse(BaseModel):
