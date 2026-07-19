@@ -24,6 +24,8 @@ def run_backtest(
     fees_bps: float,
     slippage_bps: float,
     init_cash: float = 10_000.0,
+    timeframe: str = "1d",
+    asset_class: str = "crypto",
 ) -> BacktestResult:
     # Optional leakage guard (no-op for signal strategies without feature/label frames).
     if "_features" in params and "_labels" in params:
@@ -74,5 +76,5 @@ def run_backtest(
             )
             in_position = False
 
-    stats = compute_stats(equity_curve, trades)
+    stats = compute_stats(equity_curve, trades, timeframe=timeframe, asset_class=asset_class)
     return BacktestResult(equity_curve=equity_curve, trades=trades, stats=stats)

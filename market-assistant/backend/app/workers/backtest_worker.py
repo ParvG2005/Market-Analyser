@@ -77,6 +77,11 @@ async def _run(session: AsyncSession, backtest_id: str) -> None:
         strategy = STRATEGY_REGISTRY[strategy_name]()
         symbol = universe["symbol"]
         tf = universe["tf"]
+        # Annualization must know the asset's trading calendar (24/7 crypto vs
+        # NSE session); default to crypto if the instrument row is missing.
+        asset_class = await session.scalar(
+            select(Instrument.asset_class).where(Instrument.symbol == symbol).limit(1)
+        )
         candles = await load_candles_df(session, symbol, tf, bt.start_ts, bt.end_ts)
         result = run_backtest(
             strategy=strategy,
@@ -84,6 +89,8 @@ async def _run(session: AsyncSession, backtest_id: str) -> None:
             params=params,
             fees_bps=float(bt.fees_bps),
             slippage_bps=float(bt.slippage_bps),
+            timeframe=tf,
+            asset_class=asset_class or "crypto",
         )
         bt.stats = result.stats
         bt.equity_curve = serialize_equity_curve(result.equity_curve)
