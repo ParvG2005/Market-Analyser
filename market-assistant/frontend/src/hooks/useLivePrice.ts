@@ -57,11 +57,22 @@ export function useLivePrice(symbol: string): LivePrice {
   }, [symbol]);
 
   const onMessage = (data: string) => {
-    const candle: Candle = JSON.parse(data);
+    let candle: Candle;
+    try {
+      candle = JSON.parse(data);
+    } catch {
+      return;
+    }
+    // Only trust well-formed candle frames: a non-candle frame (or a malformed
+    // one) would otherwise set `last` to undefined and crash consumers doing
+    // `last.toFixed(...)`.
+    if (typeof candle.c !== "number" || !Number.isFinite(candle.c) || !candle.ts) {
+      return;
+    }
     const day = candle.ts.slice(0, 10);
     if (lastDayRef.current !== day) {
       lastDayRef.current = day;
-      setDayOpen(candle.o);
+      if (typeof candle.o === "number") setDayOpen(candle.o);
     }
     setLast(candle.c);
   };
