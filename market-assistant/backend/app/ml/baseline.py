@@ -22,9 +22,13 @@ def random_baseline_return(
     candles: pd.DataFrame,
     fees_bps: float,
     slippage_bps: float,
+    horizon: int = 1,
     n_trials: int = 200,
     seed: int = 42,
 ) -> float:
+    # The random baseline must trade at the MODEL's horizon; comparing an
+    # h-bar model against a 1-bar random benchmark is apples-to-oranges (they
+    # pay costs and capture drift over different holding periods).
     rng = np.random.default_rng(seed)
     close = candles["c"].to_numpy()
     n = len(close)
@@ -34,7 +38,7 @@ def random_baseline_return(
         entries_mask = rng.integers(0, 2, size=n).astype(bool)
         trial_returns.append(
             simulate_directional_returns(
-                close, entries_mask, horizon=1, fees_bps=fees_bps, slippage_bps=slippage_bps
+                close, entries_mask, horizon=horizon, fees_bps=fees_bps, slippage_bps=slippage_bps
             )
         )
     return float(np.mean(trial_returns))

@@ -26,7 +26,6 @@ from typing import Any, Protocol
 import numpy as np
 import pandas as pd
 
-from app.backtest.stats import TRADING_PERIODS_PER_YEAR
 from app.strategies.base import SignalCandidate
 
 
@@ -281,13 +280,13 @@ def run_signal_backtest(
     if len(rets) < 2:
         sharpe = 0.0
     else:
+        # These are per-TRADE returns, not per-bar: trades arrive irregularly,
+        # so there is no meaningful periods-per-year to annualize by. Report the
+        # raw mean/std ratio (a per-trade information ratio), NOT a sqrt(252)
+        # "annualized" number that would fabricate a time horizon.
         ret_series = pd.Series(rets)
         std = float(ret_series.std(ddof=1))
-        sharpe = (
-            float(ret_series.mean() / std) * math.sqrt(TRADING_PERIODS_PER_YEAR)
-            if std > 0
-            else 0.0
-        )
+        sharpe = float(ret_series.mean() / std) if std > 0 else 0.0
 
     if len(equity_curve) < 2:
         max_dd = 0.0

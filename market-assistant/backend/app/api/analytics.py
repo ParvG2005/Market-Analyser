@@ -52,7 +52,10 @@ async def correlation(
         closes = await _load_closes(session, instrument.id, tf, limit)
         if len(closes) < 2:
             continue
-        returns_by_symbol[instrument.symbol] = closes["c"].pct_change().dropna()
+        # Index returns by timestamp so compute_correlation_matrix aligns
+        # instruments on the SAME bars, not by position.
+        closes_ts = closes.set_index("ts")["c"]
+        returns_by_symbol[instrument.symbol] = closes_ts.pct_change().dropna()
 
     if not returns_by_symbol:
         raise HTTPException(status_code=404, detail="no data for asset_class")

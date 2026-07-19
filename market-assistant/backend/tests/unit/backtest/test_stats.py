@@ -14,6 +14,7 @@ def test_stats_match_hand_calculation_on_fixture_curve():
     # returns = [0.10, -0.045454545..., 0.076190476..., -0.026548672..., 0.018181818...]
     mean_r = returns.mean()
     std_r = returns.std(ddof=1)
+    # Daily equity bars -> 252 periods/year (annualization now derives from tf).
     expected_sharpe = (mean_r / std_r) * math.sqrt(252)
 
     # Max drawdown: running max = [100,110,110,113,113,113]
@@ -30,7 +31,7 @@ def test_stats_match_hand_calculation_on_fixture_curve():
     # win_rate = 3 wins / 5 trades = 0.6
     # net_return = (112 - 100) / 100 = 0.12
 
-    stats = compute_stats(equity, trades)
+    stats = compute_stats(equity, trades, timeframe="1d", asset_class="equity")
 
     assert stats["sharpe"] == pytest.approx(expected_sharpe, rel=1e-9)
     assert stats["max_dd"] == pytest.approx(expected_max_dd, rel=1e-9)

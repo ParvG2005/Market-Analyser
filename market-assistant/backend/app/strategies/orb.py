@@ -23,21 +23,8 @@ import pandas as pd
 
 from app.scanner.indicators import rel_volume
 from app.strategies.base import SignalCandidate
-from app.strategies.levels import candle_ts, rr_target
+from app.strategies.levels import candle_ts, latest_session, rr_target
 from app.strategies.registry import register
-
-
-def _latest_session(candles: pd.DataFrame) -> pd.DataFrame:
-    """Sub-frame of the bars sharing the most recent bar's UTC day.
-
-    Positional (numpy) masking keeps this correct for both frame shapes the
-    presets see: a ``ts`` COLUMN over a RangeIndex (live worker / API) and a
-    DatetimeIndex (backtest bridge). tz-aware and naive timestamps both
-    normalize cleanly.
-    """
-    ts = candles["ts"] if "ts" in candles.columns else candles.index.to_series()
-    days = pd.to_datetime(pd.Series(ts.to_numpy())).dt.normalize().to_numpy()
-    return candles.iloc[days == days[-1]]
 
 
 class ORBStrategy:
@@ -68,7 +55,7 @@ class ORBStrategy:
         if len(candles) <= or_bars:
             return []
 
-        session = _latest_session(candles)
+        session = latest_session(candles)
         if len(session) <= or_bars:
             return []
 

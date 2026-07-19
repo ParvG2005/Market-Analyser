@@ -31,23 +31,26 @@ async def poll_equity_universe(ctx: dict[str, Any]) -> int:
     if not is_in_session(now):
         return 0
 
-    session = ctx["session_factory"]()
     redis = ctx["redis"]
 
-    instruments = await ensure_equity_instruments(session)
+    # Context-manage the session so its connection is returned to the pool on
+    # every tick (and on any error mid-loop); a bare factory() call leaked one
+    # connection per 15-minute run.
+    async with ctx["session_factory"]() as session:
+        instruments = await ensure_equity_instruments(session)
 
-    start = now - timedelta(minutes=settings.EQUITY_POLL_INTERVAL_MIN)
-    total_written = 0
+        start = now - timedelta(minutes=settings.EQUITY_POLL_INTERVAL_MIN)
+        total_written = 0
 
-    for instrument in instruments:
-        raw_symbol = instrument.symbol.removesuffix(".NS")
-        candles = fetch_candles(raw_symbol, POLL_TF, start, now)
-        if not candles:
-            continue
-        # upsert_candles fans out each candle via publish_candle_update when
-        # redis is passed, so we do NOT publish separately here.
-        written = await upsert_candles(session, instrument.id, candles, redis=redis)
-        total_written += written
+        for instrument in instruments:
+            raw_symbol = instrument.symbol.removesuffix(".NS")
+            candles = fetch_candles(raw_symbol, POLL_TF, start, now)
+            if not candles:
+                continue
+            # upsert_candles fans out each candle via publish_candle_update when
+            # redis is passed, so we do NOT publish separately here.
+            written = await upsert_candles(session, instrument.id, candles, redis=redis)
+            total_written += written
 
-    await session.commit()
-    return total_written
+        await session.commit()
+        return total_written

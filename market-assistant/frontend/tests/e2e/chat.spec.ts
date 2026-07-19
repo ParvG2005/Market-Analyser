@@ -46,7 +46,9 @@ test("ask a question and see tool activity + a disclaimered answer", async ({ pa
   await page.getByLabel("Message").fill("how is BTC looking on 1h?");
   await page.getByRole("button", { name: "Send" }).click();
 
-  await expect(page.locator(".tool-activity-chip")).toBeVisible({ timeout: 10_000 });
+  // .first(): the activity chip can transiently render more than once, which
+  // trips Playwright strict mode on a bare locator. We only need one visible.
+  await expect(page.locator(".tool-activity-chip").first()).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/RSI 58\.2/)).toBeVisible({ timeout: 10_000 });
   // The recommendation bubble carries its own disclaimer (distinct from the
   // app-shell footer, which also shows it on every page).

@@ -47,8 +47,22 @@ NSE_HOLIDAYS: set[date] = {
     date(2026, 12, 25),  # Christmas (Fri)
 }
 
+# Last calendar year whose NSE holiday list is fully populated above. Dates
+# beyond this are rejected rather than silently assumed to be trading days:
+# NSE only publishes its holiday circular one year ahead, and variable
+# religious holidays (Holi, Diwali, Eid, ...) cannot be derived, so guessing
+# would mislabel every unlisted holiday as open. Extend NSE_HOLIDAYS with the
+# next year's official circular and this bumps automatically.
+LAST_KNOWN_HOLIDAY_YEAR = max(h.year for h in NSE_HOLIDAYS)
+
 
 def is_trading_day(day: date) -> bool:
+    if day.year > LAST_KNOWN_HOLIDAY_YEAR:
+        raise ValueError(
+            f"NSE holiday calendar unknown for {day.year}: last known year is "
+            f"{LAST_KNOWN_HOLIDAY_YEAR}. Add the official NSE {day.year} holiday "
+            "list to NSE_HOLIDAYS before trading dates in that year."
+        )
     if day.weekday() >= 5:  # Saturday=5, Sunday=6
         return False
     return day not in NSE_HOLIDAYS
