@@ -18,18 +18,31 @@ or retried candle re-enqueuing the same job never double-emits a signal/hit.
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from typing import Any, Protocol
 
+import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingest.candle import Candle
+from app.ml.grouping import instrument_group_for
+from app.models.ml_model import MLModel
 from app.models.scan_rule import ScanRule
 from app.models.strategy_config import StrategyConfig
 from app.scanner.dsl import parse_rule_definition
 from app.scanner.evaluator import compile_rule
+from app.scanner.history import load_recent_candles
 
 logger = logging.getLogger(__name__)
+
+# ML models are trained on 1h bars (see app/ml/train.py + tests), and MLModel
+# carries no tf column, so inference is triggered on 1h closes only.
+ML_INFERENCE_TF = "1h"
+ML_WINDOW_BARS = 250
+# Below this many 1h bars build_features drops everything (warmup windows), so
+# don't bother shipping a window that would immediately no-op.
+MIN_ML_BARS = 30
 
 
 class SupportsEnqueue(Protocol):
@@ -73,6 +86,34 @@ async def _active_scan_tfs(session: AsyncSession) -> set[str]:
     return tfs
 
 
+async def _published_models_by_group(session: AsyncSession) -> dict[str, list[str]]:
+    result = await session.execute(select(MLModel).where(MLModel.published.is_(True)))
+    by_group: dict[str, list[str]] = defaultdict(list)
+    for model in result.scalars().all():
+        by_group[model.instrument_group].append(str(model.id))
+    return by_group
+
+
+async def _ml_window(
+    session: AsyncSession, instrument_id: int
+) -> pd.DataFrame | None:
+    rows = await load_recent_candles(
+        session, instrument_id, ML_INFERENCE_TF, ML_WINDOW_BARS
+    )
+    if len(rows) < MIN_ML_BARS:
+        return None
+    return pd.DataFrame(
+        {
+            "o": [float(r.o or 0) for r in rows],
+            "h": [float(r.h or 0) for r in rows],
+            "l": [float(r.l or 0) for r in rows],
+            "c": [float(r.c or 0) for r in rows],
+            "v": [float(r.v or 0) for r in rows],
+        },
+        index=pd.DatetimeIndex([r.ts for r in rows]),
+    )
+
+
 async def dispatch_close_jobs(
     arq_pool: SupportsEnqueue,
     session: AsyncSession,
@@ -85,6 +126,8 @@ async def dispatch_close_jobs(
     """
     strategy_scopes = await _active_strategy_scopes(session)
     scan_tfs = await _active_scan_tfs(session)
+    # Loaded lazily: only pay for the model query when a 1h candle is present.
+    models_by_group: dict[str, list[str]] | None = None
 
     enqueued = 0
     for symbol, candles in batch.items():
@@ -104,4 +147,19 @@ async def dispatch_close_jobs(
                     _candle_dict(candle),
                 )
                 enqueued += 1
+            if tf == ML_INFERENCE_TF:
+                if models_by_group is None:
+                    models_by_group = await _published_models_by_group(session)
+                model_ids = models_by_group.get(instrument_group_for(symbol), [])
+                if model_ids:
+                    window = await _ml_window(session, instrument_id)
+                    if window is not None:
+                        for model_id in model_ids:
+                            await arq_pool.enqueue_job(
+                                "run_ml_inference_job",
+                                model_id,
+                                instrument_id,
+                                window,
+                            )
+                            enqueued += 1
     return enqueued
