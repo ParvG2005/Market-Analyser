@@ -17,10 +17,11 @@ async def create_backtest(
     request: BacktestCreateRequest,
     session: AsyncSession = Depends(get_session),
     arq_pool: ArqRedis = Depends(get_arq_pool),
-    _user_id: uuid.UUID = Depends(get_current_user_id),
+    user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> BacktestResponse:
     bt = Backtest(
         id=uuid.uuid4(),
+        user_id=user_id,
         strategy=request.strategy,
         params=request.params,
         universe=request.universe,
@@ -40,9 +41,12 @@ async def create_backtest(
 async def get_backtest(
     backtest_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> BacktestResponse:
     bt = await session.get(Backtest, backtest_id)
-    if bt is None:
+    # Owner-scoped: a mismatch (including a NULL owner on a pre-ownership row)
+    # 404s rather than 403 so a caller can't probe which ids exist.
+    if bt is None or bt.user_id != user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="backtest not found")
     return BacktestResponse(
         id=bt.id, status=bt.status, stats=bt.stats, equity_curve=bt.equity_curve
