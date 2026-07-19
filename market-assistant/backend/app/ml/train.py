@@ -15,6 +15,11 @@ from app.ml.labels import build_fixed_horizon_labels
 from app.ml.registry import save_artifact
 from app.ml.splitter import purged_walk_forward_splits
 
+# regime_* one-hots are intentionally EXCLUDED: the inference worker has no
+# regime series at serve time, so those columns would be all-zero at serve
+# while training saw real dummies -- a train/serve skew. Keeping the model
+# regime-free guarantees the feature vector is identical in both paths.
+# build_features still emits the regime columns; they are simply not selected.
 FEATURE_COLUMNS = [
     "ret_1",
     "ret_3",
@@ -23,10 +28,6 @@ FEATURE_COLUMNS = [
     "rsi_14",
     "volume_z",
     "vwap_dist",
-    "regime_trend_up",
-    "regime_trend_down",
-    "regime_range",
-    "regime_high_vol",
 ]
 
 
