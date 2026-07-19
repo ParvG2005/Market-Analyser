@@ -7,6 +7,7 @@ from contextlib import AbstractAsyncContextManager
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ingest.aggregator import LiveAggregator
 from app.ingest.candle import Candle
 from app.ingest.dispatch import SupportsEnqueue, dispatch_close_jobs
 from app.ingest.writer import upsert_candles
@@ -22,10 +23,12 @@ class CandleBuffer:
         symbol_to_instrument_id: dict[str, int],
         redis: Redis | None = None,
         arq_pool: SupportsEnqueue | None = None,
+        aggregator: LiveAggregator | None = None,
     ) -> None:
         self._symbol_to_instrument_id = symbol_to_instrument_id
         self._redis = redis
         self._arq_pool = arq_pool
+        self._aggregator = aggregator
         self._pending: dict[str, list[Candle]] = defaultdict(list)
         self._lock = asyncio.Lock()
 
@@ -104,7 +107,45 @@ class CandleBuffer:
                     )
                 except Exception:
                     logger.exception("dispatch of candle-close jobs failed")
+            if self._aggregator is not None:
+                await self._roll_up_higher_tfs(session, batch)
         return written
+
+    async def _roll_up_higher_tfs(
+        self, session: AsyncSession, batch: dict[str, list[Candle]]
+    ) -> None:
+        """Produce, persist and dispatch any higher-tf candles the just-flushed
+        1m closes complete. Best-effort: a failure here never rolls back the 1m
+        write (already committed) — the window is simply retried next flush."""
+        assert self._aggregator is not None
+        try:
+            emissions = await self._aggregator.produce(
+                session, self._symbol_to_instrument_id, batch
+            )
+            if not emissions:
+                return
+            higher: dict[str, list[Candle]] = defaultdict(list)
+            for e in emissions:
+                higher[e.symbol].append(e.candle)
+            for symbol, candles in higher.items():
+                instrument_id = self._symbol_to_instrument_id.get(symbol)
+                if instrument_id is None:
+                    continue
+                await upsert_candles(session, instrument_id, candles, self._redis)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.exception("higher-tf aggregation failed")
+            return
+        # Only advance the aggregator high-water mark after a durable commit.
+        self._aggregator.confirm(emissions)
+        if self._arq_pool is not None:
+            try:
+                await dispatch_close_jobs(
+                    self._arq_pool, session, higher, self._symbol_to_instrument_id
+                )
+            except Exception:
+                logger.exception("dispatch of higher-tf candle-close jobs failed")
 
     async def run_flush_loop(
         self, session_factory: SessionFactory, interval_s: float = 5.0

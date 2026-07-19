@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import insert
 from app.core.config import get_settings
 from app.core.deps import get_redis, get_sessionmaker
 from app.core.universe import enforce_universe_cap
+from app.ingest.aggregator import LiveAggregator
 from app.ingest.buffer import CandleBuffer, SessionFactory
 from app.ingest.dispatch import SupportsEnqueue
 from app.ingest.metrics import SupportsRedisKV
@@ -110,7 +111,12 @@ async def run_ingest(
 
         # Pass redis so each flushed candle is fanned out to /ws/candles
         # subscribers (Phase 3 live visualization).
-        buffer = CandleBuffer(symbol_to_instrument_id, redis=redis, arq_pool=arq_pool)
+        buffer = CandleBuffer(
+            symbol_to_instrument_id,
+            redis=redis,
+            arq_pool=arq_pool,
+            aggregator=LiveAggregator(),
+        )
         consumer = BinanceWSConsumer(
             symbols=symbols,
             buffer=buffer,
