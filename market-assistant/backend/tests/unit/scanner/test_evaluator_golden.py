@@ -36,7 +36,7 @@ def test_fires_exactly_at_expected_bar_never_adjacent(asset_class, base_price):
 
     fired_bars = []
     for i in range(len(closes)):
-        snapshot = {"5m": {"rsi": rsi_series[i], "rel_volume": relvol_series[i]}}
+        snapshot = {"5m": {"rsi:14": rsi_series[i], "rel_volume:20": relvol_series[i]}}
         if compiled.evaluate(snapshot):
             fired_bars.append(i)
 
@@ -53,8 +53,8 @@ def test_any_combinator_fires_when_one_branch_true():
         ]
     }
     compiled = compile_rule(parse_rule_definition(definition))
-    assert compiled.evaluate({"5m": {"rsi": 50, "rel_volume": 5}}) is True
-    assert compiled.evaluate({"5m": {"rsi": 50, "rel_volume": 1}}) is False
+    assert compiled.evaluate({"5m": {"rsi:14": 50, "rel_volume:20": 5}}) is True
+    assert compiled.evaluate({"5m": {"rsi:14": 50, "rel_volume:20": 1}}) is False
 
 
 def test_required_indicators_lists_each_ind_tf_pair_once():
@@ -66,7 +66,9 @@ def test_required_indicators_lists_each_ind_tf_pair_once():
         ]
     }
     compiled = compile_rule(parse_rule_definition(definition))
-    assert sorted(compiled.required_indicators()) == sorted([("rsi", "5m"), ("rel_volume", "15m")])
+    assert sorted(compiled.required_indicators()) == sorted(
+        [("rsi:14", "5m"), ("rel_volume:20", "15m")]
+    )
 
 
 def test_missing_indicator_in_snapshot_evaluates_false_not_exception():

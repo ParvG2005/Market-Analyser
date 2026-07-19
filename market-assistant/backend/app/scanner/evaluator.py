@@ -40,7 +40,7 @@ class CompiledRule:
             return any(self._eval_node(child, snapshot_by_tf) for child in node.any)
         if isinstance(node, Condition):
             tf_values = snapshot_by_tf.get(node.tf, {})
-            value = tf_values.get(node.ind)
+            value = tf_values.get(node.key)
             if value is None or (isinstance(value, float) and math.isnan(value)):
                 return False
             return OPS[node.op](value, node.value)
@@ -59,7 +59,7 @@ class CompiledRule:
             for child in node.any:
                 self._collect(child, seen)
         elif isinstance(node, Condition):
-            seen.add((node.ind, node.tf))
+            seen.add((node.key, node.tf))
 
 
 def compile_rule(node: RuleNode) -> CompiledRule:
