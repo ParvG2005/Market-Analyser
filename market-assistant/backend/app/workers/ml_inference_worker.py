@@ -2,6 +2,7 @@ import uuid
 from typing import Any
 
 import pandas as pd
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ml.features import build_features
 from app.ml.inference import predict_prob_up, should_emit_signal
@@ -9,12 +10,31 @@ from app.ml.registry import load_artifact
 from app.ml.train import FEATURE_COLUMNS
 from app.models.ml_model import MLModel
 from app.models.signal import Signal
+from app.scanner.dedup import DEDUP_TTL_SECONDS
 
 
 async def run_ml_inference_job(
     ctx: dict[str, Any], ml_model_id: str, instrument_id: int, candles_window: pd.DataFrame
 ) -> None:
-    db_session = ctx["db_session"]
+    """arq entrypoint. The live worker ctx exposes ``session_factory``; narrow
+    inference tests pass a ready ``db_session``. Resolve whichever is present so
+    the same registered job serves both."""
+    session = ctx.get("db_session")
+    if session is not None:
+        await _infer(ctx, session, ml_model_id, instrument_id, candles_window)
+        return
+    session_factory = ctx["session_factory"]
+    async with session_factory() as session:
+        await _infer(ctx, session, ml_model_id, instrument_id, candles_window)
+
+
+async def _infer(
+    ctx: dict[str, Any],
+    db_session: AsyncSession,
+    ml_model_id: str,
+    instrument_id: int,
+    candles_window: pd.DataFrame,
+) -> None:
     ml_model = await db_session.get(MLModel, uuid.UUID(ml_model_id))
     if ml_model is None or not ml_model.published:
         return
@@ -32,6 +52,19 @@ async def run_ml_inference_job(
     threshold = (ml_model.metrics or {}).get("threshold", 0.55)
     if not should_emit_signal(ml_model.published, prob_up, threshold):
         return
+
+    # Idempotency: the live pipeline re-enqueues candle-close jobs (re-flushed
+    # candles, worker retries), so claim a per-(model, instrument, bar) key
+    # before inserting. A failed claim means this bar already emitted -> skip.
+    # redis is absent in the unit ctx used by narrow inference tests, in which
+    # case dedup is a no-op (those tests run each bar exactly once).
+    redis = ctx.get("redis")
+    if redis is not None:
+        bar_ts_iso = features.index[-1].isoformat()
+        dedup_key = f"signal_dedup:ml:{ml_model.id}:{instrument_id}:{bar_ts_iso}"
+        claimed = await redis.set(dedup_key, "1", nx=True, ex=DEDUP_TTL_SECONDS)
+        if not claimed:
+            return
 
     signal = Signal(
         instrument_id=instrument_id,
