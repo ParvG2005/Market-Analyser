@@ -42,11 +42,15 @@ def simulate_directional_returns(
     fees_bps: float,
     slippage_bps: float,
 ) -> float:
-    """Average per-trade net return over non-overlapping entries (0.0 if none)."""
+    """Cumulative (compounded) net return over NON-OVERLAPPING entries (0.0 if
+    none). Compounded — not averaged — so it stays on the same capital-growth
+    basis as ``buy_and_hold_return``; the baseline gate compares the two
+    directly, so an average-per-trade figure would be apples-to-oranges."""
     returns = _trade_returns(close, entries_mask, horizon, fees_bps, slippage_bps)
-    if not returns:
-        return 0.0
-    return float(np.mean(returns))
+    capital = 1.0
+    for r in returns:
+        capital *= 1.0 + r
+    return capital - 1.0
 
 
 def count_trades(entries_mask: npt.NDArray[np.bool_], horizon: int) -> int:
