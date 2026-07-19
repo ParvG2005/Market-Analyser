@@ -25,6 +25,7 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
   const [candles, setCandles] = useState<Candle[]>([]);
   const [delayed, setDelayed] = useState(false);
   const [delayMinutes, setDelayMinutes] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const candlesRef = useRef<Candle[]>([]);
 
   useEffect(() => {
@@ -32,22 +33,34 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
     setCandles([]);
     setDelayed(false);
     setDelayMinutes(0);
+    setError(null);
     if (typeof fetch !== "function") return;
 
     let cancelled = false;
     const params = new URLSearchParams({ symbol, tf, from, to });
     authedFetch(`${API_BASE}/candles?${params.toString()}`)
-      .then((res) => res.json())
-      .then((body: { candles: Candle[]; delayed?: boolean; delay_minutes?: number }) => {
+      .then(async (res) => {
+        // A 401/422/429 returns a JSON error body with no `candles`; without
+        // this guard `body.candles` is undefined and setCandles(undefined)
+        // makes callers' `candles.length` throw (white-screen the page).
+        if (!res.ok) {
+          throw new Error(`candles request failed (${res.status})`);
+        }
+        const body: { candles: Candle[]; delayed?: boolean; delay_minutes?: number } =
+          await res.json();
         if (cancelled) return;
-        const history = body.candles;
+        const history = body.candles ?? [];
         candlesRef.current = history;
         setCandles(history);
         setDelayed(body.delayed ?? false);
         setDelayMinutes(body.delay_minutes ?? 0);
       })
-      .catch(() => {
-        /* offline / backend down — keep the empty series, WS may still fill it */
+      .catch((err: unknown) => {
+        // offline / backend down / auth error — keep the empty series (WS may
+        // still fill it) but surface an error so the page can show a state
+        // instead of a blank canvas.
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Failed to load candles");
       });
 
     return () => {
@@ -80,5 +93,5 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
     }
   }, [status, symbol, tf, send]);
 
-  return { candles, status, delayed, delayMinutes };
+  return { candles, status, delayed, delayMinutes, error };
 }

@@ -28,7 +28,7 @@ export function ChartsPage() {
     vwap: false,
     bollinger: false,
   });
-  const { candles, status, delayed, delayMinutes } = useCandles(
+  const { candles, status, delayed, delayMinutes, error } = useCandles(
     symbol,
     tf,
     DEFAULT_FROM,
@@ -78,12 +78,18 @@ export function ChartsPage() {
       </div>
 
       <section className="panel chart-panel">
-        <CandleChart
-          candles={candles}
-          overlays={overlays}
-          delayed={delayed}
-          delayMinutes={delayMinutes}
-        />
+        {error && candles.length === 0 ? (
+          <p className="chart-error" data-testid="charts-error" role="alert">
+            Couldn’t load candles ({error}). Retrying live…
+          </p>
+        ) : (
+          <CandleChart
+            candles={candles}
+            overlays={overlays}
+            delayed={delayed}
+            delayMinutes={delayMinutes}
+          />
+        )}
       </section>
 
       <p className="disc chart-disc">
