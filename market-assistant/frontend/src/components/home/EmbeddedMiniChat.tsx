@@ -5,7 +5,8 @@ import { MessageBubble } from "../chat/MessageBubble";
 
 /** Compact desk chat that reuses the full chat stream + message bubbles. */
 export function EmbeddedMiniChat({ sessionId }: { sessionId: string }) {
-  const { messages, isStreaming, sendMessage } = useChatStream(sessionId);
+  const { messages, isStreaming, streamingText, error, sendMessage } =
+    useChatStream(sessionId);
   const [text, setText] = useState("");
 
   return (
@@ -14,6 +15,16 @@ export function EmbeddedMiniChat({ sessionId }: { sessionId: string }) {
         {messages.slice(-4).map((m, i) => (
           <MessageBubble key={i} message={m} />
         ))}
+        {isStreaming && streamingText && (
+          <div className="chat-bubble chat-bubble--assistant">
+            <p className="chat-bubble-body">{streamingText}</p>
+          </div>
+        )}
+        {error && (
+          <p className="chat-error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
       <form
         className="chatbox"

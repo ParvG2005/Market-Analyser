@@ -5,6 +5,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { Badge } from "../common/Badge";
 import { Disclaimer } from "../Disclaimer";
+import { PriceTape } from "./PriceTape";
 
 interface NavEntry {
   to: string;
@@ -25,14 +26,6 @@ const NAV: NavEntry[] = [
   { to: "/ml", label: "ML", icon: "◈" },
   { to: "/chat", label: "Chat", icon: "✦" },
 ];
-
-const TAPE = [
-  { sym: "BTC", px: "67,412", chg: "+2.14%", dir: "up" },
-  { sym: "ETH", px: "3,284", chg: "+1.02%", dir: "up" },
-  { sym: "SOL", px: "184.6", chg: "−0.73%", dir: "down" },
-  { sym: "SPY", px: "548.9", chg: "+0.31%", dir: "up" },
-  { sym: "NVDA", px: "126.4", chg: "−1.18%", dir: "down" },
-] as const;
 
 export function AppShell() {
   const theme = useThemeStore((s) => s.theme);
@@ -124,15 +117,7 @@ export function AppShell() {
       />
 
       <div className="main">
-        <div className="tape">
-          {TAPE.map((t) => (
-            <div className="tape-item" key={t.sym}>
-              <span className="sym">{t.sym}</span>
-              <span className="px num">{t.px}</span>
-              <span className={`chg num ${t.dir}`}>{t.chg}</span>
-            </div>
-          ))}
-        </div>
+        <PriceTape />
 
         <div className="topbar">
           <button

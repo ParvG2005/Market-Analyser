@@ -76,6 +76,7 @@ function fromApi(raw: InstrumentApiShape): InstrumentDto {
 export async function getInstruments(assetClass?: string): Promise<InstrumentDto[]> {
   const params = assetClass ? `?asset_class=${encodeURIComponent(assetClass)}` : "";
   const res = await authedFetch(`${API_BASE}/api/instruments${params}`);
+  if (!res.ok) throw new Error(`getInstruments failed: ${res.status}`);
   const body: InstrumentApiShape[] = await res.json();
   return body.map(fromApi);
 }
@@ -94,6 +95,7 @@ export async function createInstrument(payload: {
       exchange: payload.exchange,
     }),
   });
+  if (!res.ok) throw new Error(`createInstrument failed: ${res.status}`);
   const body: InstrumentApiShape = await res.json();
   return fromApi(body);
 }
@@ -104,6 +106,7 @@ export async function updateInstrument(id: number, active: boolean): Promise<Ins
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ active }),
   });
+  if (!res.ok) throw new Error(`updateInstrument failed: ${res.status}`);
   const body: InstrumentApiShape = await res.json();
   return fromApi(body);
 }
@@ -112,8 +115,34 @@ export async function seedNifty50(): Promise<InstrumentDto[]> {
   const res = await authedFetch(`${API_BASE}/api/instruments/seed-nifty50`, {
     method: "POST",
   });
+  if (!res.ok) throw new Error(`seedNifty50 failed: ${res.status}`);
   const body: InstrumentApiShape[] = await res.json();
   return body.map(fromApi);
+}
+
+export interface SignalDto {
+  id: number;
+  instrument_id: number | null;
+  strategy: string;
+  direction: string;
+  ts: string;
+  confidence: number | null;
+  ref_entry: number | null;
+  ref_sl: number | null;
+  ref_tp: number | null;
+  backtest_ref: string | null;
+  meta: Record<string, unknown> | null;
+}
+
+export async function getSignals(
+  instrumentId: number,
+  strategy?: string,
+): Promise<SignalDto[]> {
+  const params = new URLSearchParams({ instrument_id: String(instrumentId) });
+  if (strategy) params.set("strategy", strategy);
+  const res = await authedFetch(`${API_BASE}/api/signals?${params.toString()}`);
+  if (!res.ok) throw new Error(`getSignals failed: ${res.status}`);
+  return res.json();
 }
 
 // --- Chat (Phase 10) ---
@@ -145,18 +174,21 @@ export function chatTurnUrl(sessionId: string): string {
 
 export async function createSession(): Promise<ChatSessionDto> {
   const res = await authedFetch(`${API_BASE}/api/chat/sessions`, { method: "POST" });
+  if (!res.ok) throw new Error(`createSession failed: ${res.status}`);
   const body: ChatSessionApiShape = await res.json();
   return { id: body.id, createdAt: body.created_at };
 }
 
 export async function listSessions(): Promise<ChatSessionDto[]> {
   const res = await authedFetch(`${API_BASE}/api/chat/sessions`);
+  if (!res.ok) throw new Error(`listSessions failed: ${res.status}`);
   const body: ChatSessionApiShape[] = await res.json();
   return body.map((s) => ({ id: s.id, createdAt: s.created_at }));
 }
 
 export async function getSessionMessages(sessionId: string): Promise<ChatMessageDto[]> {
   const res = await authedFetch(`${API_BASE}/api/chat/sessions/${sessionId}/messages`);
+  if (!res.ok) throw new Error(`getSessionMessages failed: ${res.status}`);
   const body: ChatMessageApiShape[] = await res.json();
   return body
     .filter((m) => m.role !== "tool" && m.content)
