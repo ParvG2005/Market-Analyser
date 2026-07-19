@@ -68,10 +68,11 @@ class PullbackTrendStrategy:
 
         in_uptrend = bar["c"] > trend_ma[-1]
         tolerance = pullback_ma[-2] * (params["pullback_tolerance_pct"] / 100.0)
-        pulled_back = (
-            abs(prior["l"] - pullback_ma[-2]) <= tolerance
-            or prior["l"] <= pullback_ma[-2] + tolerance
-        )
+        # A pullback is the low returning to WITHIN a tolerance band of the
+        # pullback EMA. The old `or prior["l"] <= ma + tol` clause subsumed the
+        # band and dropped the lower floor, so a deep breakdown far below the
+        # EMA counted as a pullback. Keep only the abs-distance band.
+        pulled_back = abs(prior["l"] - pullback_ma[-2]) <= tolerance
         reversal_bar = bar["c"] > bar["o"] and bar["c"] > prior["c"]
 
         if in_uptrend and pulled_back and reversal_bar:

@@ -124,7 +124,6 @@ export function useStrategies() {
     // toggle actually reads Off) rather than trusting the optimistic flip.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["strategy-configs"] }),
   });
-  const miniBacktest = useMutation({ mutationFn: runMiniBacktest });
 
   return {
     strategies: strategiesQuery.data ?? [],
@@ -134,6 +133,5 @@ export function useStrategies() {
     isLoading: strategiesQuery.isLoading,
     isError: strategiesQuery.isError,
     upsertStrategyConfig,
-    miniBacktest,
   };
 }
