@@ -114,10 +114,15 @@ async def run_chat_turn(
             )
             tool_events += events2
             regenerated = True
-            answer = answer2 if check_grounding(answer2, tool_events).grounded else FALLBACK_MESSAGE
+            # Ground the regenerated answer against the SECOND pass's tool events
+            # only — it was produced from that context, so first-pass facts it
+            # never saw must not spuriously "support" it.
+            answer = answer2 if check_grounding(answer2, events2).grounded else FALLBACK_MESSAGE
 
-    if answer != FALLBACK_MESSAGE and not check_advice_language(answer).ok:
-        answer = FALLBACK_MESSAGE
+    # Require the disclaimer on any surfaced (non-fallback) answer.
+    if answer != FALLBACK_MESSAGE:
+        if not check_advice_language(answer, requires_disclaimer=True).ok:
+            answer = FALLBACK_MESSAGE
 
     db.add(ChatMessage(session_id=session_id, role="assistant", content=answer))
     await db.commit()
@@ -133,7 +138,10 @@ async def _run_rounds(
     provider_name: str = "",
 ) -> tuple[str, list[ToolResult], bool]:
     tool_events: list[ToolResult] = []
-    text_parts: list[str] = []
+    # The answer is the LAST round's text only. Intermediate rounds emit
+    # think-aloud chatter before their tool calls; accumulating every round's
+    # tokens would prepend that chatter to the final answer.
+    final_text = ""
     quota_blocked = False
     for _round in range(MAX_TOOL_ROUNDS):
         # Consume one unit of the daily budget per provider round. When exhausted,
@@ -145,7 +153,6 @@ async def _run_rounds(
         round_calls: list[tuple[Any, ToolResult]] = []
         async for chunk in provider.stream(messages, TOOL_SCHEMAS):
             if chunk.type == "token" and chunk.text:
-                text_parts.append(chunk.text)
                 round_text.append(chunk.text)
             elif chunk.type == "tool_call" and chunk.tool_call:
                 call = chunk.tool_call
@@ -169,6 +176,7 @@ async def _run_rounds(
                         ],
                     )
                 )
+        final_text = "".join(round_text)
         if not round_calls:
             break
         # Record the assistant's tool_use turn *and* the paired results in the
@@ -202,4 +210,4 @@ async def _run_rounds(
                     "content": _as_untrusted_tool_content(result),
                 }
             )
-    return "".join(text_parts), tool_events, quota_blocked
+    return final_text, tool_events, quota_blocked

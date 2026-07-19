@@ -3,9 +3,10 @@ backed by this turn's tool outputs. The orchestrator regenerates once on
 failure, then substitutes ``FALLBACK_MESSAGE``.
 
 Only price/indicator-value-shaped numbers count as claims: a decimal
-(``62.4``, ``65000.0``), a 4+ digit number (a price like ``71234``), or a
-``$``-prefixed number. Bare small integers (indicator periods like ``9/21/14``,
-scale references like ``0-100``) are treated as prose, not verifiable facts.
+(``62.4``, ``65000.0``), a 5+ digit number (a price like ``71234``), or a
+``$``-prefixed / magnitude-suffixed number. Bare shorter integers (indicator
+periods ``9/21/14``, scale refs ``0-100``, 4-digit years/counts like ``2024``)
+are treated as prose, not verifiable facts.
 """
 
 from __future__ import annotations
@@ -67,11 +68,15 @@ def _known_numbers(facts: list[ToolResult]) -> list[float]:
 
 
 def _is_market_fact_claim(dollar: str, core: str, suffix: str) -> bool:
+    # Needs a currency ($), magnitude suffix (k/m/b), or decimal to count as a
+    # price/indicator claim. A BARE integer must be 5+ digits — a 4-digit bare
+    # number is almost always a year ("2024") or a count, not a verifiable price,
+    # and flagging it caused false ungrounded fallbacks.
     if dollar == "$" or suffix:
         return True
     if "." in core:
         return True
-    return len(core.replace(",", "").replace(" ", "")) >= 4
+    return len(core.replace(",", "").replace(" ", "")) >= 5
 
 
 def _claim_value(core: str, suffix: str) -> float:
