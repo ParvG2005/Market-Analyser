@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { authedFetch, buildWsUrl } from "../lib/api";
+import { parseSignalFrame } from "../lib/wsFrames";
 import { useAccessToken } from "./useAccessToken";
 import { useWebSocket } from "./useWebSocket";
 
@@ -56,7 +57,8 @@ export function useSignals(
 
   const onMessage = useMemo(
     () => (data: string) => {
-      const incoming: SignalOut = JSON.parse(data);
+      const incoming = parseSignalFrame(data);
+      if (!incoming) return; // drop malformed / off-schema frames silently
       setLive((prev) =>
         prev.some((s) => s.id === incoming.id) ? prev : [incoming, ...prev],
       );
@@ -66,7 +68,12 @@ export function useSignals(
 
   const token = useAccessToken();
   const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/signals`, token) : "";
-  const { send, status } = useWebSocket(wsUrl, { onMessage });
+  // reconnectKey rebuilds the socket on a symbol/tf change (fresh server
+  // subscription) instead of leaking the previous feed's signals.
+  const { send, status } = useWebSocket(wsUrl, {
+    onMessage,
+    reconnectKey: `signals:${symbol}:${tf}`,
+  });
 
   useEffect(() => {
     if (status === "open") {

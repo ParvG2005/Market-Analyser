@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { authedFetch, buildWsUrl } from "../lib/api";
+import { parseCandleFrame } from "../lib/wsFrames";
 import type { Candle } from "./useCandles";
 import { useAccessToken } from "./useAccessToken";
 import { useWebSocket } from "./useWebSocket";
@@ -57,29 +58,27 @@ export function useLivePrice(symbol: string): LivePrice {
   }, [symbol]);
 
   const onMessage = (data: string) => {
-    let candle: Candle;
-    try {
-      candle = JSON.parse(data);
-    } catch {
-      return;
-    }
     // Only trust well-formed candle frames: a non-candle frame (or a malformed
     // one) would otherwise set `last` to undefined and crash consumers doing
-    // `last.toFixed(...)`.
-    if (typeof candle.c !== "number" || !Number.isFinite(candle.c) || !candle.ts) {
-      return;
-    }
+    // `last.toFixed(...)`. Shared validator, same guard as useCandles/useSignals.
+    const candle = parseCandleFrame(data);
+    if (!candle) return;
     const day = candle.ts.slice(0, 10);
     if (lastDayRef.current !== day) {
       lastDayRef.current = day;
-      if (typeof candle.o === "number") setDayOpen(candle.o);
+      setDayOpen(candle.o);
     }
     setLast(candle.c);
   };
 
   const token = useAccessToken();
   const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/candles`, token) : "";
-  const { status, send } = useWebSocket(wsUrl, { onMessage });
+  // reconnectKey rebuilds the socket on a symbol change, dropping the previous
+  // symbol's subscription.
+  const { status, send } = useWebSocket(wsUrl, {
+    onMessage,
+    reconnectKey: `candles:${symbol}:1m`,
+  });
 
   useEffect(() => {
     if (status === "open") send({ subscribe: `candles:${symbol}:1m` });

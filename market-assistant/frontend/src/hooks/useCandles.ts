@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { authedFetch, buildWsUrl } from "../lib/api";
+import { parseCandleFrame } from "../lib/wsFrames";
 import { useAccessToken } from "./useAccessToken";
 import { useWebSocket } from "./useWebSocket";
 
@@ -70,7 +71,8 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
 
   const onMessage = useMemo(
     () => (data: string) => {
-      const incoming: Candle = JSON.parse(data);
+      const incoming = parseCandleFrame(data);
+      if (!incoming) return; // drop malformed / off-schema frames silently
       const existing = candlesRef.current;
       const idx = existing.findIndex((c) => c.ts === incoming.ts);
       const next =
@@ -85,7 +87,13 @@ export function useCandles(symbol: string, tf: string, from: string, to: string)
 
   const token = useAccessToken();
   const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/candles`, token) : "";
-  const { send, status } = useWebSocket(wsUrl, { onMessage });
+  // reconnectKey tears the socket down and reopens it on a symbol/tf change, so
+  // the previous server subscription is dropped and in-flight frames from the
+  // old channel can't leak into the reset series.
+  const { send, status } = useWebSocket(wsUrl, {
+    onMessage,
+    reconnectKey: `candles:${symbol}:${tf}`,
+  });
 
   useEffect(() => {
     if (status === "open") {

@@ -62,7 +62,14 @@ export function useChatStream(sessionId: string) {
           for (const frame of frames) {
             const line = frame.split("\n").find((l) => l.startsWith("data: "));
             if (!line) continue;
-            const event: StreamEvent = JSON.parse(line.slice("data: ".length));
+            // A single truncated/malformed data line must not abort the turn —
+            // skip it and keep folding the rest of the stream.
+            let event: StreamEvent;
+            try {
+              event = JSON.parse(line.slice("data: ".length));
+            } catch {
+              continue;
+            }
             if (event.type === "token") {
               acc += String(event.payload.text ?? "");
               setStreamingText(acc);

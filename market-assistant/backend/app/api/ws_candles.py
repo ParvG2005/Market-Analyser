@@ -34,6 +34,10 @@ async def ws_candles(websocket: WebSocket, token: str = Query(...)) -> None:
     try:
         while True:
             msg = await websocket.receive_json()
+            # A non-object frame (array/number/string) has no `.get`; skip it
+            # rather than letting it crash the receive loop and drop the socket.
+            if not isinstance(msg, dict):
+                continue
             channel = msg.get("subscribe")
             if not channel:
                 continue
