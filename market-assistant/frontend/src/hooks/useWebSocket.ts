@@ -83,7 +83,17 @@ export function useWebSocket(
     return () => {
       cancelled = true;
       clearTimeout(reconnectTimer);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws) {
+        // Detach handlers BEFORE close: a closing socket still fires onclose
+        // (and can fire onmessage for buffered frames), which would flip status
+        // or deliver a stale message into the next effect's context.
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
     };
   }, [url, reconnectDelayMs, maxReconnectDelayMs, reconnectKey]);
 

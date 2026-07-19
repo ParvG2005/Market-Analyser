@@ -6,6 +6,8 @@ import { createTestRouter } from "../../src/router";
 
 const authState = vi.hoisted(() => ({
   isAuthenticated: false,
+  resolved: true,
+  session: null as { user: { email: string } } | null,
   user: null as { email: string } | null,
   signIn: vi.fn(),
   signUp: vi.fn(),
@@ -22,6 +24,8 @@ vi.mock("../../src/stores/authStore", () => ({
 describe("auth routing", () => {
   beforeEach(() => {
     authState.isAuthenticated = false;
+    authState.resolved = true;
+    authState.session = null;
     authState.user = null;
     authState.signIn.mockReset();
     authState.signUp.mockReset();
@@ -37,6 +41,7 @@ describe("auth routing", () => {
 
   it("lets an authenticated visitor reach a guarded app route", () => {
     authState.isAuthenticated = true;
+    authState.session = { user: { email: "a@b.com" } };
     authState.user = { email: "a@b.com" };
 
     render(<App router={createTestRouter("/")} />);

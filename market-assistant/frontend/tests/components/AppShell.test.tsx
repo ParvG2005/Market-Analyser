@@ -24,7 +24,12 @@ describe("AppShell", () => {
   beforeEach(() => {
     document.documentElement.removeAttribute("data-theme");
     // AppShell now sits behind RequireAuth (Phase 11) — sign in for these specs.
-    useAuthStore.setState({ isAuthenticated: true, user: { email: "a@b.com" } as never });
+    useAuthStore.setState({
+      isAuthenticated: true,
+      resolved: true,
+      session: { user: { email: "a@b.com" } } as never,
+      user: { email: "a@b.com" } as never,
+    });
   });
 
   it("renders all 9 nav links", () => {

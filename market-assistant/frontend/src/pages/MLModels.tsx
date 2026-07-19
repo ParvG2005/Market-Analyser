@@ -71,7 +71,7 @@ export default function MLModels() {
               </tr>
             </thead>
             <tbody>
-              {data.fold_metrics.map((f) => (
+              {(data.fold_metrics ?? []).map((f) => (
                 <tr key={f.fold}>
                   <td className="num">{f.fold}</td>
                   <td className="num">{f.n_train}</td>
@@ -81,7 +81,7 @@ export default function MLModels() {
               ))}
             </tbody>
           </table>
-          <CalibrationPlot foldMetrics={data.fold_metrics} />
+          <CalibrationPlot foldMetrics={data.fold_metrics ?? []} />
         </div>
       </section>
 

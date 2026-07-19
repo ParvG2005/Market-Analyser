@@ -4,19 +4,25 @@ import numpy.typing as npt
 from app.backtest.costs import apply_costs
 
 
-def simulate_directional_returns(
+def _trade_returns(
     close: npt.NDArray[np.float64],
     entries_mask: npt.NDArray[np.bool_],
     horizon: int,
     fees_bps: float,
     slippage_bps: float,
-) -> float:
-    capital = 1.0
-    for i, enter in enumerate(entries_mask):
-        if not enter:
+) -> list[float]:
+    """Per-trade net returns for NON-OVERLAPPING entries: after entering at bar
+    i (held `horizon` bars) the next entry is only considered from i+horizon, so
+    a run of consecutive entry signals becomes one position, not many stacked."""
+    returns: list[float] = []
+    n = len(close)
+    i = 0
+    while i < n:
+        if not entries_mask[i]:
+            i += 1
             continue
-        if i + horizon >= len(close):
-            continue
+        if i + horizon >= n:
+            break
         costs = apply_costs(
             entry_price=float(close[i]),
             exit_price=float(close[i + horizon]),
@@ -24,5 +30,36 @@ def simulate_directional_returns(
             slippage_bps=slippage_bps,
             side="long",
         )
-        capital *= 1 + (costs.net_pnl / close[i])
-    return capital - 1.0
+        returns.append(costs.net_pnl / float(close[i]))
+        i += horizon
+    return returns
+
+
+def simulate_directional_returns(
+    close: npt.NDArray[np.float64],
+    entries_mask: npt.NDArray[np.bool_],
+    horizon: int,
+    fees_bps: float,
+    slippage_bps: float,
+) -> float:
+    """Average per-trade net return over non-overlapping entries (0.0 if none)."""
+    returns = _trade_returns(close, entries_mask, horizon, fees_bps, slippage_bps)
+    if not returns:
+        return 0.0
+    return float(np.mean(returns))
+
+
+def count_trades(entries_mask: npt.NDArray[np.bool_], horizon: int) -> int:
+    """Number of non-overlapping trades ``entries_mask`` would execute."""
+    count = 0
+    n = len(entries_mask)
+    i = 0
+    while i < n:
+        if not entries_mask[i]:
+            i += 1
+            continue
+        if i + horizon >= n:
+            break
+        count += 1
+        i += horizon
+    return count

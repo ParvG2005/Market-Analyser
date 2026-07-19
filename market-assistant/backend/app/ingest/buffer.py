@@ -80,6 +80,14 @@ class CandleBuffer:
             try:
                 written = await self._write_batch(session, batch)
                 await session.commit()
+            except asyncio.CancelledError:
+                # A cancel between the batch swap and a durable commit would
+                # otherwise drop the in-flight batch. Merge it back
+                # synchronously (no await -> atomic against a concurrent add())
+                # and re-raise to honor the cancellation.
+                for symbol, candles in batch.items():
+                    self._pending[symbol] = candles + self._pending[symbol]
+                raise
             except Exception:
                 await session.rollback()
                 await self._requeue(batch)
@@ -92,9 +100,18 @@ class CandleBuffer:
                 logger.info("buffer flush wrote %d candles", written)
             # Fan out to the WS feed only AFTER the durable commit, so a
             # subscriber never sees a candle a rollback would have discarded.
+            # Publish only known symbols (unknown ones were dropped, not
+            # written) and never let a publish error abort the flush cycle.
             if self._redis is not None:
-                for candles in batch.values():
-                    await publish_candles(self._redis, candles)
+                for symbol, candles in batch.items():
+                    if self._symbol_to_instrument_id.get(symbol) is None:
+                        continue
+                    try:
+                        await publish_candles(self._redis, candles)
+                    except Exception:
+                        logger.exception(
+                            "publish of %d candles for %s failed", len(candles), symbol
+                        )
             # Fan out candle-close compute jobs only AFTER the candles are
             # durably committed. A dispatch failure must never re-queue the
             # batch (the rows are already written; re-flushing would re-run the
@@ -141,9 +158,15 @@ class CandleBuffer:
             logger.exception("higher-tf aggregation failed")
             return
         # Publish the higher-tf candles only after the commit above succeeded.
+        # Known-symbols only, and never let a publish error abort the cycle.
         if self._redis is not None:
-            for candles in higher.values():
-                await publish_candles(self._redis, candles)
+            for symbol, candles in higher.items():
+                if self._symbol_to_instrument_id.get(symbol) is None:
+                    continue
+                try:
+                    await publish_candles(self._redis, candles)
+                except Exception:
+                    logger.exception("publish of higher-tf candles for %s failed", symbol)
         # Only advance the aggregator high-water mark after a durable commit.
         self._aggregator.confirm(emissions)
         if self._arq_pool is not None:

@@ -12,9 +12,13 @@ export function EmbeddedMiniChat({ sessionId }: { sessionId: string }) {
   return (
     <div className="embedded-mini-chat" data-testid="embedded-mini-chat">
       <div className="mini-chat-log">
-        {messages.slice(-4).map((m, i) => (
-          <MessageBubble key={i} message={m} />
-        ))}
+        {messages.slice(-4).map((m, i) => {
+          // Key by absolute position in the full (append-only) log, not the
+          // sliced index — otherwise every new message shifts the window and
+          // React reuses the wrong bubble's DOM/state for the last 4.
+          const key = messages.length - Math.min(4, messages.length) + i;
+          return <MessageBubble key={key} message={m} />;
+        })}
         {isStreaming && streamingText && (
           <div className="chat-bubble chat-bubble--assistant">
             <p className="chat-bubble-body">{streamingText}</p>

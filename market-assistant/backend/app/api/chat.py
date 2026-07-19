@@ -89,12 +89,14 @@ async def stream_turn(
     session: AsyncSession = Depends(get_session),
     user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> StreamingResponse:
-    if not await check_rate_limit(str(user_id)):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded, try again later.")
-
+    # Ownership check FIRST: a caller must not learn (via a 429) that a session
+    # they don't own exists, nor burn their rate-limit budget on foreign ids.
     owner = await session.get(ChatSession, session_id)
     if owner is None or owner.user_id != user_id:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    if not await check_rate_limit(str(user_id)):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded, try again later.")
 
     quota_guard = LlmQuotaGuard(
         redis_client=get_redis(), daily_quota=get_settings().llm_daily_quota

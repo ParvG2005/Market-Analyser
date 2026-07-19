@@ -127,8 +127,12 @@ export function CandleChart({ candles, overlays, delayed, delayMinutes }: Candle
 
     if (overlays.ema && emaSeriesRef.current) {
       const values = ema(candles, 21);
+      // ema() now emits NaN during the warm-up window; lightweight-charts
+      // rejects NaN values, so drop those points before setData.
       emaSeriesRef.current.setData(
-        candles.map((c, i) => ({ time: barTime(c.ts), value: values[i] })),
+        candles
+          .map((c, i) => ({ time: barTime(c.ts), value: values[i] }))
+          .filter((pt) => Number.isFinite(pt.value)),
       );
     } else {
       emaSeriesRef.current?.setData([]);

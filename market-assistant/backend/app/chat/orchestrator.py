@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from app.chat.quota import LlmQuotaGuard
 
 import app.chat.tools  # noqa: F401  (registers TOOL_IMPLS)
-from app.chat.guards.advice import check_advice_language
+from app.chat.guards.advice import DISCLAIMER_TEXT, check_advice_language
 from app.chat.guards.grounding import FALLBACK_MESSAGE, check_grounding
 from app.chat.providers.base import LLMProvider
 from app.chat.system_prompt import SYSTEM_PROMPT
@@ -119,10 +119,14 @@ async def run_chat_turn(
             # never saw must not spuriously "support" it.
             answer = answer2 if check_grounding(answer2, events2).grounded else FALLBACK_MESSAGE
 
-    # Require the disclaimer on any surfaced (non-fallback) answer.
+    # Surfaced (non-fallback) answers: forbidden advice language still routes to
+    # the educational fallback, but a merely MISSING disclaimer is auto-appended
+    # rather than nuking an otherwise-good answer (T1-6: not a blanket fallback).
     if answer != FALLBACK_MESSAGE:
-        if not check_advice_language(answer, requires_disclaimer=True).ok:
+        if not check_advice_language(answer, requires_disclaimer=False).ok:
             answer = FALLBACK_MESSAGE
+        elif DISCLAIMER_TEXT.lower() not in answer.lower():
+            answer = f"{answer}\n\n{DISCLAIMER_TEXT}"
 
     db.add(ChatMessage(session_id=session_id, role="assistant", content=answer))
     await db.commit()
@@ -143,6 +147,7 @@ async def _run_rounds(
     # tokens would prepend that chatter to the final answer.
     final_text = ""
     quota_blocked = False
+    last_had_calls = False
     for _round in range(MAX_TOOL_ROUNDS):
         # Consume one unit of the daily budget per provider round. When exhausted,
         # stop generating further rounds (the caller decides fallback vs. keep).
@@ -178,7 +183,9 @@ async def _run_rounds(
                 )
         final_text = "".join(round_text)
         if not round_calls:
+            last_had_calls = False
             break
+        last_had_calls = True
         # Record the assistant's tool_use turn *and* the paired results in the
         # running transcript. Without the assistant turn the model can't tell
         # which call each result answers, so it re-issues the same calls every
@@ -210,4 +217,17 @@ async def _run_rounds(
                     "content": _as_untrusted_tool_content(result),
                 }
             )
+    # T2-12: if the round budget was exhausted while the model was STILL calling
+    # tools, `final_text` is mid-reasoning chatter, not an answer. Do one final
+    # no-tool synthesis pass so the model must produce a real answer from the
+    # accumulated tool context. quota_blocked is left for the caller to fall back.
+    if last_had_calls and not quota_blocked:
+        if quota_guard is None or await quota_guard.check_and_increment(provider_name):
+            synth_text: list[str] = []
+            async for chunk in provider.stream(messages, []):
+                if chunk.type == "token" and chunk.text:
+                    synth_text.append(chunk.text)
+            final_text = "".join(synth_text)
+        else:
+            quota_blocked = True
     return final_text, tool_events, quota_blocked

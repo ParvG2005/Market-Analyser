@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { buildWsUrl } from "../lib/api";
 import type { ScanHit } from "../lib/scannerTypes";
+import { parseScanHitFrame } from "../lib/wsFrames";
 import { useAccessToken } from "./useAccessToken";
 import { useWebSocket } from "./useWebSocket";
 
@@ -23,12 +24,8 @@ export function useScanHits(): ScanHit[] {
 
   const onMessage = useMemo(
     () => (data: string) => {
-      let hit: ScanHit;
-      try {
-        hit = JSON.parse(data);
-      } catch {
-        return;
-      }
+      const hit = parseScanHitFrame(data);
+      if (hit === null) return;
       const key = `${hit.rule_id}-${hit.instrument_id}-${hit.ts}`;
       if (seen.current.has(key)) return;
       seen.current.add(key);
@@ -43,6 +40,13 @@ export function useScanHits(): ScanHit[] {
   );
 
   const token = useAccessToken();
+  // A token change means a different user (or a fresh sign-in) — drop the
+  // previous user's buffered hits and dedup memory so nothing bleeds across.
+  useEffect(() => {
+    setHits([]);
+    seen.current.clear();
+  }, [token]);
+
   const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/scanner/hits`, token) : "";
   useWebSocket(wsUrl, { onMessage });
 

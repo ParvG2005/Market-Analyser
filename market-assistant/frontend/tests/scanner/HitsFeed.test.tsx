@@ -26,4 +26,19 @@ describe("HitsFeed", () => {
     render(<HitsFeed hits={[]} />);
     expect(screen.getByText(/no hits yet/i)).toBeInTheDocument();
   });
+
+  it("does not crash when a hit has a null/missing payload", () => {
+    const hits = [
+      {
+        rule_id: 3,
+        rule_name: "Broken",
+        instrument_id: 4,
+        tf: "5m",
+        ts: "2026-01-01T00:05:00Z",
+        payload: null,
+      } as unknown as ScanHit,
+    ];
+    render(<HitsFeed hits={hits} />);
+    expect(screen.getByText("Broken")).toBeInTheDocument();
+  });
 });

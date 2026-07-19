@@ -8,6 +8,13 @@ interface AuthState {
   user: User | null;
   session: Session | null;
   isAuthenticated: boolean;
+  /**
+   * True once the live Supabase session has been resolved at least once
+   * (initial `getSession`/`onAuthStateChange`, or an explicit auth action).
+   * Route guards must wait for this before redirecting, so a persisted
+   * fast-paint `user` can't briefly admit a signed-out visitor.
+   */
+  resolved: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -20,22 +27,38 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       session: null,
       isAuthenticated: false,
+      resolved: false,
       setSession: (session) =>
-        set({ session, user: session?.user ?? null, isAuthenticated: session != null }),
+        set({
+          session,
+          user: session?.user ?? null,
+          isAuthenticated: session != null,
+          resolved: true,
+        }),
       signIn: async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        set({ session: data.session, user: data.user, isAuthenticated: data.session != null });
+        set({
+          session: data.session,
+          user: data.user,
+          isAuthenticated: data.session != null,
+          resolved: true,
+        });
       },
       signUp: async (email, password) => {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        set({ session: data.session, user: data.user, isAuthenticated: data.session != null });
+        set({
+          session: data.session,
+          user: data.user,
+          isAuthenticated: data.session != null,
+          resolved: true,
+        });
       },
       signOut: async () => {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
-        set({ session: null, user: null, isAuthenticated: false });
+        set({ session: null, user: null, isAuthenticated: false, resolved: true });
       },
     }),
     {

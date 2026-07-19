@@ -76,7 +76,10 @@ async def backfill_gaps(
     total_written = 0
 
     for gap_start, gap_end in gaps:
-        limit = int((gap_end - gap_start).total_seconds() // 60) + 1
+        # Number of bars in the gap is the span divided by the timeframe's
+        # length, not a hardcoded per-minute count — otherwise 5m/15m/1h gaps
+        # over-request by the tf-minute factor.
+        limit = int((gap_end - gap_start).total_seconds() // (60 * _TF_MINUTES[tf])) + 1
         since_ms = int(gap_start.timestamp() * 1000)
         raw_rows = await exchange.fetch_ohlcv(symbol, timeframe=tf, since=since_ms, limit=limit)
         candles = [

@@ -153,8 +153,12 @@ async def run_quick_backtest(args: dict[str, Any], ctx: dict[str, Any]) -> dict[
     if len(rows) < 60:
         return {"strategy": strategy_name, "symbol": symbol, "tf": tf, "available": False}
     df = _candles_to_df(rows)
+    # Pass the tf/asset_class so the window is floored to the asset's session
+    # length (session-anchored presets need the full session in view) rather
+    # than relying on the stale 60-bar default.
+    asset_class = "equity" if symbol.endswith(".NS") else "crypto"
     result = await asyncio.to_thread(
-        run_signal_backtest, strat, df, params, 10, 5
+        run_signal_backtest, strat, df, params, 10, 5, tf=tf, asset_class=asset_class
     )
     payload = {
         "strategy": strategy_name,

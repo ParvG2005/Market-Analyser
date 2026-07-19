@@ -51,6 +51,23 @@ def test_ws_resubscribe_stops_forwarding_old_channel(redis_sync_client):
             assert received == eth_candle
 
 
+def test_ws_ignores_non_dict_frame(redis_sync_client):
+    # A client may send a non-object JSON frame (array/number/string). `.get` on
+    # it would raise and tear the socket down; the loop must skip it and stay up.
+    with TestClient(create_app()) as client:
+        with client.websocket_connect(CANDLES_URL) as ws:
+            ws.send_json([1, 2, 3])
+            time.sleep(0.1)
+            ws.send_json({"subscribe": "candles:BTC/USDT:1m"})
+            time.sleep(0.2)
+
+            candle = {"ts": "2024-01-01T00:01:00Z", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}
+            redis_sync_client.publish("candles:BTC/USDT:1m", json.dumps(candle))
+
+            received = json.loads(ws.receive_text())
+            assert received == candle
+
+
 def test_ws_rejects_missing_token():
     # No ?token= -> FastAPI's required Query(...) rejects the handshake before
     # accept(); Starlette's TestClient surfaces that as WebSocketDisconnect.

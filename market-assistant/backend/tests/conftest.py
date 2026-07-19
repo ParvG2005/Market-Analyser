@@ -1,6 +1,46 @@
 # ruff: noqa: E402 -- DATABASE_URL must be set before app.core.config is imported
 import os
 
+# Native-lib thread hygiene: the ML modules pull in lightgbm/sklearn, which link
+# their own OpenMP runtime. Under the full single-process run, the OpenMP thread
+# pool (and lightgbm's tqdm monitor thread) is created/torn down across many
+# per-test event loops and segfaults mid-suite. Pin every native thread pool to
+# 1 and tolerate a duplicated libomp — this MUST happen before numpy/sklearn/
+# lightgbm are first imported (i.e. before app.* below), so set it here at the
+# very top of the first conftest pytest loads. setdefault respects an explicit
+# override from the caller's environment.
+for _var, _val in (
+    ("OMP_NUM_THREADS", "1"),
+    ("OPENBLAS_NUM_THREADS", "1"),
+    ("MKL_NUM_THREADS", "1"),
+    ("NUMEXPR_NUM_THREADS", "1"),
+    ("KMP_DUPLICATE_LIB_OK", "TRUE"),
+):
+    os.environ.setdefault(_var, _val)
+
+# pandas-ta (scanner/backtest tests) creates tqdm progress bars, which spin up a
+# persistent daemon "monitor" thread. That leaves the parent process
+# multi-threaded, so when pytest-forked forks an ML test the child inherits a
+# mid-flight OpenMP/thread state and segfaults. Disabling the monitor interval
+# stops the thread from ever starting, keeping the parent single-threaded and
+# every fork clean. No effect on non-forked (Linux CI) runs beyond dropping a
+# progress-bar heartbeat thread nothing depends on.
+import tqdm as _tqdm
+
+_tqdm.tqdm.monitor_interval = 0
+
+# Preload lightgbm's OpenMP runtime (libomp) BEFORE anything pulls in OpenBLAS's
+# (numpy/pandas/pandas-ta, loaded by the scanner/backtest/analytics tests). On
+# macOS the two OpenMP runtimes otherwise co-initialize in an order that
+# segfaults mid-suite; loading lightgbm first — combined with
+# KMP_DUPLICATE_LIB_OK above — pins a single, stable libomp for the whole
+# process. Best-effort: if lightgbm isn't installed the ML tests are skipped
+# anyway, so a failed import here is harmless.
+try:
+    import lightgbm as _lightgbm  # noqa: F401
+except Exception:
+    pass
+
 # Test hermeticity: neutralize a developer-local .env (e.g. a Supabase
 # DATABASE_URL lacking the +asyncpg driver, which breaks the async engine).
 # In pydantic-settings, an OS env var outranks the .env file; setdefault beats

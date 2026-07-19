@@ -1,6 +1,7 @@
 import { createBrowserRouter, createMemoryRouter } from "react-router-dom";
 
 import { RequireAuth } from "./components/auth/RequireAuth";
+import { RouteErrorElement } from "./components/common/ErrorBoundary";
 import { AppShell } from "./components/layout/AppShell";
 import { Analytics } from "./pages/Analytics";
 import { BacktestResults } from "./pages/BacktestResults";
@@ -26,6 +27,7 @@ const routes = [
     children: [
       {
         element: <AppShell />,
+        errorElement: <RouteErrorElement />,
         children: [
           { path: "/", element: <Home /> },
           { path: "/charts", element: <ChartsPage /> },
