@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { authedFetch, buildWsUrl } from "../lib/api";
+import { parseSignalFrame } from "../lib/wsFrames";
 import { useAccessToken } from "./useAccessToken";
 import { useWebSocket } from "./useWebSocket";
 
@@ -56,7 +57,8 @@ export function useSignals(
 
   const onMessage = useMemo(
     () => (data: string) => {
-      const incoming: SignalOut = JSON.parse(data);
+      const incoming = parseSignalFrame(data);
+      if (!incoming) return; // drop malformed / off-schema frames silently
       setLive((prev) =>
         prev.some((s) => s.id === incoming.id) ? prev : [incoming, ...prev],
       );
@@ -65,7 +67,12 @@ export function useSignals(
   );
 
   const token = useAccessToken();
-  const wsUrl = token ? buildWsUrl(`${WS_BASE}/ws/signals`, token) : "";
+  // Fragment folds the channel into the URL so a symbol/tf change rebuilds the
+  // socket (fresh server subscription) instead of leaking the old feed's
+  // signals. Stripped by the WS handshake — the server URL is unchanged.
+  const wsUrl = token
+    ? `${buildWsUrl(`${WS_BASE}/ws/signals`, token)}#signals:${symbol}:${tf}`
+    : "";
   const { send, status } = useWebSocket(wsUrl, { onMessage });
 
   useEffect(() => {

@@ -56,7 +56,15 @@ class BinanceWSConsumer:
             async for raw in ws:
                 self._attempt = 0  # reset backoff on any successful message
                 await record_heartbeat(self._redis, "binance_ws")
-                payload = json.loads(raw)
+                # A single malformed / non-object frame must not tear down the
+                # socket (which would trigger a backoff reconnect). Skip it.
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError:
+                    logger.warning("skipping malformed ws frame")
+                    continue
+                if not isinstance(payload, dict):
+                    continue
                 msg = payload.get("data", payload)
                 candle = parse_binance_kline(msg)
                 if candle is not None:
