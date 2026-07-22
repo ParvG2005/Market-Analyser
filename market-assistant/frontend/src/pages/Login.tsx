@@ -3,14 +3,16 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { Panel } from "../components/common/Panel";
+import { DEMO_ID, DEMO_PASSKEY } from "../lib/demoCreds";
 import { useAuthStore } from "../stores/authStore";
 
-/** Supabase-backed sign-in. On success, navigates to the app home. */
+/** Supabase-backed sign-in. On success, navigates to the app home.
+ * Fields are prefilled with demo access so an interviewer can sign in directly. */
 export function Login() {
   const signIn = useAuthStore((s) => s.signIn);
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(DEMO_ID);
+  const [password, setPassword] = useState(DEMO_PASSKEY);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -41,19 +43,19 @@ export function Login() {
         <Panel title="Sign in">
           <form className="auth-form" onSubmit={handleSubmit}>
             <label className="auth-field" htmlFor="login-email">
-              <span className="auth-label">Email</span>
+              <span className="auth-label">ID</span>
               <input
                 id="login-email"
                 className="auth-input"
-                type="email"
-                autoComplete="email"
+                type="text"
+                autoComplete="username"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
             <label className="auth-field" htmlFor="login-password">
-              <span className="auth-label">Password</span>
+              <span className="auth-label">Passkey</span>
               <input
                 id="login-password"
                 className="auth-input"
@@ -65,6 +67,7 @@ export function Login() {
               />
             </label>
 
+            <p className="auth-hint">Demo access prefilled — continue to explore.</p>
             {error !== null && <p className="auth-error" role="alert">{error}</p>}
 
             <button type="submit" className="auth-submit" disabled={submitting}>
