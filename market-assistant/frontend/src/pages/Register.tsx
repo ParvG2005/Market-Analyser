@@ -3,15 +3,17 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { Panel } from "../components/common/Panel";
+import { DEMO_ID, DEMO_PASSKEY } from "../lib/demoCreds";
 import { useAuthStore } from "../stores/authStore";
 
 /** Supabase-backed sign-up. Navigates to the app home if a session comes back
- * immediately; otherwise (email confirmation required) shows a hint instead. */
+ * immediately; otherwise (email confirmation required) shows a hint instead.
+ * Fields are prefilled with demo access so an interviewer can sign in directly. */
 export function Register() {
   const signUp = useAuthStore((s) => s.signUp);
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(DEMO_ID);
+  const [password, setPassword] = useState(DEMO_PASSKEY);
   const [error, setError] = useState<string | null>(null);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -48,19 +50,19 @@ export function Register() {
         <Panel title="Create account">
           <form className="auth-form" onSubmit={handleSubmit}>
             <label className="auth-field" htmlFor="register-email">
-              <span className="auth-label">Email</span>
+              <span className="auth-label">ID</span>
               <input
                 id="register-email"
                 className="auth-input"
-                type="email"
-                autoComplete="email"
+                type="text"
+                autoComplete="username"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
             <label className="auth-field" htmlFor="register-password">
-              <span className="auth-label">Password</span>
+              <span className="auth-label">Passkey</span>
               <input
                 id="register-password"
                 className="auth-input"
@@ -73,6 +75,7 @@ export function Register() {
               />
             </label>
 
+            <p className="auth-hint">Demo access prefilled — continue to explore.</p>
             {error !== null && <p className="auth-error" role="alert">{error}</p>}
             {needsConfirmation && (
               <p className="auth-hint">Check your email to confirm your account, then sign in.</p>

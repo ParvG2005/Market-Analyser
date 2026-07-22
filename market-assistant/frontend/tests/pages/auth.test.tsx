@@ -56,8 +56,8 @@ describe("auth routing", () => {
 
     render(<App router={createTestRouter("/login")} />);
 
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret123" } });
+    fireEvent.change(screen.getByLabelText("ID"), { target: { value: "a@b.com" } });
+    fireEvent.change(screen.getByLabelText("Passkey"), { target: { value: "secret123" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => expect(authState.signIn).toHaveBeenCalledWith("a@b.com", "secret123"));
@@ -68,8 +68,8 @@ describe("auth routing", () => {
 
     render(<App router={createTestRouter("/login")} />);
 
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong" } });
+    fireEvent.change(screen.getByLabelText("ID"), { target: { value: "a@b.com" } });
+    fireEvent.change(screen.getByLabelText("Passkey"), { target: { value: "wrong" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid credentials");
